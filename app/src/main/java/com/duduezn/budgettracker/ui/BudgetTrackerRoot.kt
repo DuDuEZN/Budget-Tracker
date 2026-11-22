@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -24,6 +25,7 @@ import androidx.navigation.compose.rememberNavController
 import com.duduezn.budgettracker.di.AppContainer
 import com.duduezn.budgettracker.ui.categories.CategoriesScreen
 import com.duduezn.budgettracker.ui.dashboard.DashboardScreen
+import com.duduezn.budgettracker.ui.settings.SettingsScreen
 import com.duduezn.budgettracker.ui.transactions.TransactionsScreen
 
 private data class Destination(
@@ -35,7 +37,8 @@ private data class Destination(
 private val destinations = listOf(
     Destination("dashboard", "Accueil", Icons.Default.Home),
     Destination("transactions", "Transactions", Icons.AutoMirrored.Filled.List),
-    Destination("categories", "Catégories", Icons.Default.ShoppingCart)
+    Destination("categories", "Catégories", Icons.Default.ShoppingCart),
+    Destination("settings", "Paramètres", Icons.Default.Settings)
 )
 
 @Composable
@@ -88,6 +91,9 @@ fun BudgetTrackerRoot(container: AppContainer) {
             }
             composable(destinations[2].route) {
                 CategoriesScreen(viewModel = viewModel(factory = factory))
+            }
+            composable(destinations[3].route) {
+                SettingsScreen()
             }
         }
     }

@@ -10,9 +10,14 @@ import com.duduezn.budgettracker.domain.repository.BudgetRepository
 class ConfirmTransactionReasonUseCase(
     private val repository: BudgetRepository
 ) {
-    suspend operator fun invoke(transactionId: Long, categoryId: Long, reason: String) {
+    suspend operator fun invoke(
+        transactionId: Long,
+        categoryId: Long,
+        reason: String,
+        rememberMerchant: Boolean = true
+    ) {
         val cleanReason = reason.trim()
         require(cleanReason.isNotEmpty()) { "Le motif est obligatoire." }
-        repository.confirmReason(transactionId, categoryId, cleanReason)
+        repository.confirmReason(transactionId, categoryId, cleanReason, rememberMerchant)
     }
 }

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 data class DashboardUiState(
     val monthLabel: String = "",
     val totalSpent: Double = 0.0,
+    val totalIncome: Double = 0.0,
     val totalBudget: Double = 0.0,
     val pendingCount: Int = 0,
     val categoryProgress: List<CategoryProgress> = emptyList(),
@@ -38,6 +39,9 @@ class DashboardViewModel(
         val confirmedSpending = monthTransactions.filter {
             it.status == TransactionStatus.CONFIRMED && it.type != TransactionType.DEPOT
         }
+        val confirmedIncome = monthTransactions.filter {
+            it.status == TransactionStatus.CONFIRMED && it.type == TransactionType.DEPOT
+        }
         val spentByCategory = confirmedSpending
             .groupBy { it.detectedCategory }
             .mapValues { (_, list) -> list.sumOf { it.amount } }
@@ -45,6 +49,7 @@ class DashboardViewModel(
         DashboardUiState(
             monthLabel = MonthRange.label(),
             totalSpent = confirmedSpending.sumOf { it.amount },
+            totalIncome = confirmedIncome.sumOf { it.amount },
             totalBudget = categories.sumOf { it.monthlyBudgetLimit },
             pendingCount = transactions.count { it.status == TransactionStatus.PENDING_REASON },
             categoryProgress = categories.map { category ->

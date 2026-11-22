@@ -113,9 +113,16 @@ class OfflineBudgetRepository(
         )
     }
 
-    override suspend fun confirmReason(transactionId: Long, categoryId: Long, reason: String) {
+    override suspend fun confirmReason(
+        transactionId: Long,
+        categoryId: Long,
+        reason: String,
+        rememberMerchant: Boolean
+    ) {
         val transaction = transactionDao.getById(transactionId) ?: return
         transactionDao.confirmReason(transactionId, categoryId, reason)
+
+        if (!rememberMerchant) return
 
         val counterparty = transaction.counterparty
             ?.takeIf { it.isNotBlank() }

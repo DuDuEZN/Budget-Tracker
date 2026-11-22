@@ -139,17 +139,39 @@ private fun MonthlyTotalCard(state: DashboardUiState) {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "Dépensé ce mois",
+                text = "Ce mois-ci",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
             )
             Spacer(Modifier.height(4.dp))
-            Text(
-                text = formatXof(state.totalSpent),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimary
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column {
+                    Text(
+                        text = "Sorties",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = formatXof(state.totalSpent),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                Column {
+                    Text(
+                        text = "Entrées",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = formatXof(state.totalIncome),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
             Spacer(Modifier.height(4.dp))
             Text(
                 text = if (state.totalBudget > 0.0) {

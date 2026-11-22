@@ -88,7 +88,11 @@ fun CategoryBudgetRow(progress: CategoryProgress, modifier: Modifier = Modifier)
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp)),
-                color = if (overBudget) MaterialTheme.colorScheme.error else hexToColor(category.colorHex),
+                color = when {
+                    overBudget -> MaterialTheme.colorScheme.error
+                    progress.ratio >= 0.8f -> Color(0xFFEF6C00)
+                    else -> hexToColor(category.colorHex)
+                },
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
         }

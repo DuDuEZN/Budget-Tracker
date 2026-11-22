@@ -24,8 +24,13 @@ interface BudgetRepository {
     /** Enregistre une transaction analysée, en dédupliquant les messages proches. */
     suspend fun ingest(parsed: ParsedMessage): IngestResult
 
-    /** Confirme le motif d'une transaction et alimente les règles marchand. */
-    suspend fun confirmReason(transactionId: Long, categoryId: Long, reason: String)
+    /** Confirme le motif d'une transaction et alimente éventuellement les règles marchand. */
+    suspend fun confirmReason(
+        transactionId: Long,
+        categoryId: Long,
+        reason: String,
+        rememberMerchant: Boolean = true
+    )
 
     suspend fun updateCategoryBudget(categoryId: Long, monthlyLimit: Double)
 
