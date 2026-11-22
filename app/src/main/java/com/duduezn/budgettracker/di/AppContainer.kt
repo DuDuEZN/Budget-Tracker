@@ -2,7 +2,7 @@ package com.duduezn.budgettracker.di
 
 import android.content.Context
 import com.duduezn.budgettracker.data.local.BudgetDatabase
-import com.duduezn.budgettracker.data.parser.MobileMoneyParser
+import com.duduezn.budgettracker.data.parser.TransactionParser
 import com.duduezn.budgettracker.data.repository.OfflineBudgetRepository
 import com.duduezn.budgettracker.domain.parser.MessageParser
 import com.duduezn.budgettracker.domain.repository.BudgetRepository
@@ -31,7 +31,7 @@ class DefaultAppContainer(context: Context) : AppContainer {
 
     private val database by lazy { BudgetDatabase.getInstance(appContext) }
 
-    private val parser: MessageParser = MobileMoneyParser()
+    private val parser: MessageParser = TransactionParser()
 
     override val repository: BudgetRepository by lazy {
         OfflineBudgetRepository(

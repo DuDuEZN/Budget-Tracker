@@ -39,7 +39,8 @@ class OfflineBudgetRepositoryTest {
 
     private fun parsed(
         counterparty: String?,
-        categoryName: String?,
+        rawReason: String? = null,
+        reasonIsExplicit: Boolean = false,
         amount: Double = 2_500.0,
         timestamp: Long = 1_700_000_000_000L
     ) = ParsedMessage(
@@ -49,8 +50,8 @@ class OfflineBudgetRepositoryTest {
         amount = amount,
         counterparty = counterparty,
         timestamp = timestamp,
-        rawReason = counterparty,
-        categoryName = categoryName
+        rawReason = rawReason,
+        reasonIsExplicit = reasonIsExplicit
     )
 
     @Test
@@ -58,7 +59,7 @@ class OfflineBudgetRepositoryTest {
         val repository = repository()
 
         val result = repository.ingest(
-            parsed(counterparty = "MARCHAND INCONNU", categoryName = null)
+            parsed(counterparty = "MARCHAND INCONNU")
         )
 
         assertTrue(result is IngestResult.Inserted)
@@ -71,7 +72,7 @@ class OfflineBudgetRepositoryTest {
         val repository = repository()
 
         val result = repository.ingest(
-            parsed(counterparty = "RESTO LE BAOBAB", categoryName = "Restauration")
+            parsed(counterparty = "RESTO LE BAOBAB")
         )
 
         assertFalse((result as IngestResult.Inserted).needsReason)
@@ -84,7 +85,7 @@ class OfflineBudgetRepositoryTest {
     fun `confirmation cree une regle marchand reutilisee ensuite`() = runTest {
         val repository = repository()
         val first = repository.ingest(
-            parsed(counterparty = "0197000000", categoryName = null)
+            parsed(counterparty = "0197000000")
         ) as IngestResult.Inserted
 
         val restaurationId = categoryDao.categories.first { it.name == "Restauration" }.id
@@ -98,7 +99,6 @@ class OfflineBudgetRepositoryTest {
         val second = repository.ingest(
             parsed(
                 counterparty = "0197000000",
-                categoryName = null,
                 amount = 3_000.0,
                 timestamp = 1_700_000_600_000L
             )
@@ -115,7 +115,7 @@ class OfflineBudgetRepositoryTest {
     @Test
     fun `doublon SMS notification ignore`() = runTest {
         val repository = repository()
-        val message = parsed(counterparty = "0197000000", categoryName = "Restauration")
+        val message = parsed(counterparty = "0197000000")
 
         repository.ingest(message)
         val second = repository.ingest(message)
@@ -217,6 +217,9 @@ private class FakeCategoryDao : CategoryDao {
 
     override suspend fun findByName(name: String): CategoryEntity? =
         categories.firstOrNull { it.name == name }
+
+    override suspend fun getById(id: Long): CategoryEntity? =
+        categories.firstOrNull { it.id == id }
 
     override suspend fun count(): Int = categories.size
 

@@ -5,6 +5,7 @@ enum class Operator(val label: String) {
     MTN_MOMO("MTN MoMo"),
     MOOV_MONEY("Moov Money"),
     CELTIIS("Celtiis"),
+    BIIC("BIIC"),
     UNKNOWN("Inconnu")
 }
 
@@ -79,8 +80,13 @@ data class ParsedMessage(
     val currency: String = "XOF",
     val counterparty: String?,
     val timestamp: Long,
+    /** Motif trouvé dans le message (motif, raison, libellé, référence ou description bancaire). */
     val rawReason: String?,
-    val categoryName: String?
+    /**
+     * Vrai lorsque le motif provient d'un champ saisi par l'utilisateur
+     * (`Motif:`, `Raison:`, `Ref:`) et non d'une description technique de l'opérateur.
+     */
+    val reasonIsExplicit: Boolean = false
 )
 
 /** Résultat de l'ingestion d'un message dans la base locale. */

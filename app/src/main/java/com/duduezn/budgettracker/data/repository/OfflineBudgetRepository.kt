@@ -8,13 +8,14 @@ import com.duduezn.budgettracker.data.local.entity.MerchantRuleEntity
 import com.duduezn.budgettracker.data.local.entity.TransactionEntity
 import com.duduezn.budgettracker.data.mapper.toDomain
 import com.duduezn.budgettracker.data.mapper.toEntity
+import com.duduezn.budgettracker.domain.categorization.CategorizationEngine
+import com.duduezn.budgettracker.domain.categorization.LearnedRule
 import com.duduezn.budgettracker.domain.model.Category
 import com.duduezn.budgettracker.domain.model.IngestResult
 import com.duduezn.budgettracker.domain.model.MerchantRule
 import com.duduezn.budgettracker.domain.model.ParsedMessage
 import com.duduezn.budgettracker.domain.model.Transaction
 import com.duduezn.budgettracker.domain.model.TransactionStatus
-import com.duduezn.budgettracker.domain.model.TransactionType
 import com.duduezn.budgettracker.domain.repository.BudgetRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -27,7 +28,8 @@ import java.util.Locale
 class OfflineBudgetRepository(
     private val transactionDao: TransactionDao,
     private val categoryDao: CategoryDao,
-    private val merchantRuleDao: MerchantRuleDao
+    private val merchantRuleDao: MerchantRuleDao,
+    private val categorizationEngine: CategorizationEngine = CategorizationEngine()
 ) : BudgetRepository {
 
     override fun observeTransactions(): Flow<List<Transaction>> =
@@ -56,22 +58,29 @@ class OfflineBudgetRepository(
         )
         if (duplicate != null) return IngestResult.Duplicate
 
-        val detectedCategory = parsed.categoryName?.let { categoryDao.findByName(it) }
-        val merchantRule = if (parsed.type == TransactionType.PAIEMENT && counterparty != null) {
-            merchantRuleDao.findByCounterparty(MerchantIdentifier.normalize(counterparty))
-        } else {
-            null
+        // Étape 1 : une règle apprise pour cette contrepartie, quel que soit le type.
+        val merchantRule = counterparty?.let {
+            merchantRuleDao.findByCounterparty(MerchantIdentifier.normalize(it))
+        }
+        val learnedRule = merchantRule?.let { rule ->
+            categoryDao.getById(rule.categoryId)?.let { category ->
+                LearnedRule(
+                    counterpartyIdentifier = rule.counterpartyIdentifier,
+                    defaultReason = rule.defaultReason,
+                    categoryName = category.name
+                )
+            }
         }
 
-        val categoryId = merchantRule?.categoryId ?: detectedCategory?.id
-        val status = if (categoryId != null) {
+        // Étapes 2 et 3 : mots-clés locaux puis décision de relance.
+        val categorization = categorizationEngine.categorize(parsed, learnedRule)
+        val detectedCategory = categorization.categoryName?.let { categoryDao.findByName(it) }
+        val status = if (detectedCategory != null && categorization.status == TransactionStatus.CONFIRMED) {
             TransactionStatus.CONFIRMED
         } else {
             TransactionStatus.PENDING_REASON
         }
-        val finalReason = merchantRule?.defaultReason
-            ?: parsed.rawReason
-            ?: detectedCategory?.name
+        val finalReason = categorization.finalReason ?: parsed.rawReason
 
         val entity = TransactionEntity(
             rawMessage = parsed.rawMessage,
@@ -82,7 +91,7 @@ class OfflineBudgetRepository(
             counterparty = counterparty,
             timestamp = parsed.timestamp,
             rawReason = parsed.rawReason,
-            detectedCategory = categoryId,
+            detectedCategory = detectedCategory?.id,
             finalReason = finalReason,
             status = status
         )
@@ -90,7 +99,7 @@ class OfflineBudgetRepository(
         val insertedId = transactionDao.insert(entity)
         if (insertedId == -1L) return IngestResult.Duplicate
 
-        if (merchantRule != null) {
+        if (merchantRule != null && learnedRule != null) {
             merchantRuleDao.updateUsage(
                 counterparty = merchantRule.counterpartyIdentifier,
                 reason = merchantRule.defaultReason,
