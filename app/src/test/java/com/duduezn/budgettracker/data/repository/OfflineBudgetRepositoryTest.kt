@@ -235,6 +235,27 @@ private class FakeCategoryDao : CategoryDao {
     override suspend fun getById(id: Long): CategoryEntity? =
         categories.firstOrNull { it.id == id }
 
+    override suspend fun insert(category: CategoryEntity): Long {
+        if (categories.any { it.name == category.name }) return -1L
+        val stored = category.copy(id = nextId++)
+        categories += stored
+        state.value = categories.toList()
+        return stored.id
+    }
+
+    override suspend fun rename(id: Long, name: String) {
+        val index = categories.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            categories[index] = categories[index].copy(name = name)
+            state.value = categories.toList()
+        }
+    }
+
+    override suspend fun delete(id: Long) {
+        categories.removeAll { it.id == id }
+        state.value = categories.toList()
+    }
+
     override suspend fun count(): Int = categories.size
 
     override suspend fun totalBudget(): Double = categories.sumOf { it.monthlyBudgetLimit }

@@ -41,6 +41,12 @@ interface BudgetRepository {
 
     suspend fun findCategoryById(id: Long): Category?
 
+    suspend fun createCategory(name: String, monthlyLimit: Double = 0.0): Category?
+
+    suspend fun renameCategory(id: Long, name: String): Boolean
+
+    suspend fun deleteCategory(id: Long)
+
     suspend fun findTransaction(id: Long): Transaction?
 
     suspend fun findMerchantRule(counterparty: String): MerchantRule?

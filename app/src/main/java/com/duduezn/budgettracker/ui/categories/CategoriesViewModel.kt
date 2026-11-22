@@ -21,7 +21,7 @@ data class CategoriesUiState(
 )
 
 class CategoriesViewModel(
-    repository: BudgetRepository,
+    private val repository: BudgetRepository,
     private val updateCategoryBudgetUseCase: UpdateCategoryBudgetUseCase
 ) : ViewModel() {
 
@@ -58,6 +58,24 @@ class CategoriesViewModel(
     fun saveBudget(categoryId: Long, monthlyLimit: Double) {
         viewModelScope.launch {
             updateCategoryBudgetUseCase(categoryId, monthlyLimit)
+        }
+    }
+
+    fun createCategory(name: String, monthlyLimit: Double = 0.0) {
+        viewModelScope.launch {
+            repository.createCategory(name, monthlyLimit)
+        }
+    }
+
+    fun renameCategory(id: Long, name: String) {
+        viewModelScope.launch {
+            repository.renameCategory(id, name)
+        }
+    }
+
+    fun deleteCategory(id: Long) {
+        viewModelScope.launch {
+            repository.deleteCategory(id)
         }
     }
 }

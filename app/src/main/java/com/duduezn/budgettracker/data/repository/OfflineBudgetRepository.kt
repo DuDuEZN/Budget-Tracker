@@ -4,6 +4,7 @@ import com.duduezn.budgettracker.data.local.DefaultCategories
 import com.duduezn.budgettracker.data.local.dao.CategoryDao
 import com.duduezn.budgettracker.data.local.dao.MerchantRuleDao
 import com.duduezn.budgettracker.data.local.dao.TransactionDao
+import com.duduezn.budgettracker.data.local.entity.CategoryEntity
 import com.duduezn.budgettracker.data.local.entity.MerchantRuleEntity
 import com.duduezn.budgettracker.data.local.entity.TransactionEntity
 import com.duduezn.budgettracker.data.mapper.toDomain
@@ -73,7 +74,8 @@ class OfflineBudgetRepository(
         }
 
         // Étapes 2 et 3 : mots-clés locaux puis décision de relance.
-        val categorization = categorizationEngine.categorize(parsed, learnedRule)
+        val availableCategories = categoryDao.getAll().map { it.name }
+        val categorization = categorizationEngine.categorize(parsed, learnedRule, availableCategories)
         val detectedCategory = categorization.categoryName?.let { categoryDao.findByName(it) }
         val status = if (detectedCategory != null && categorization.status == TransactionStatus.CONFIRMED) {
             TransactionStatus.CONFIRMED
@@ -163,6 +165,34 @@ class OfflineBudgetRepository(
 
     override suspend fun findCategoryById(id: Long): Category? =
         categoryDao.getById(id)?.toDomain()
+
+    override suspend fun createCategory(name: String, monthlyLimit: Double): Category? {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return null
+        if (findCategoryByName(trimmed) != null) return null
+        val entity = CategoryEntity(
+            name = trimmed,
+            monthlyBudgetLimit = monthlyLimit,
+            colorHex = "#607D8B",
+            iconName = "category"
+        )
+        val id = categoryDao.insert(entity)
+        if (id <= 0L) return null
+        return categoryDao.getById(id)?.toDomain()
+    }
+
+    override suspend fun renameCategory(id: Long, name: String): Boolean {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return false
+        val existing = findCategoryByName(trimmed)
+        if (existing != null && existing.id != id) return false
+        categoryDao.rename(id, trimmed)
+        return true
+    }
+
+    override suspend fun deleteCategory(id: Long) {
+        categoryDao.delete(id)
+    }
 
     override suspend fun findTransaction(id: Long): Transaction? =
         transactionDao.getById(id)?.toDomain()

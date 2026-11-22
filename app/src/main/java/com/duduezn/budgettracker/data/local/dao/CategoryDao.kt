@@ -31,6 +31,15 @@ interface CategoryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(categories: List<CategoryEntity>): List<Long>
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(category: CategoryEntity): Long
+
+    @Query("UPDATE categories SET name = :name WHERE id = :id")
+    suspend fun rename(id: Long, name: String)
+
+    @Query("DELETE FROM categories WHERE id = :id")
+    suspend fun delete(id: Long)
+
     @Query("UPDATE categories SET monthlyBudgetLimit = :monthlyLimit WHERE id = :categoryId")
     suspend fun updateBudget(categoryId: Long, monthlyLimit: Double)
 }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -41,19 +42,31 @@ fun CategoriesScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var showCreateDialog by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Catégories",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Total budgété : ${formatXof(state.totalBudget)}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Catégories",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Total budgété : ${formatXof(state.totalBudget)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Button(onClick = { showCreateDialog = true }) {
+                    Text("Nouvelle")
+                }
+            }
         }
 
         LazyColumn(
@@ -76,7 +89,7 @@ fun CategoriesScreen(
                             horizontalArrangement = Arrangement.End
                         ) {
                             TextButton(onClick = { editingCategory = progress.category }) {
-                                Text("Modifier le plafond")
+                                Text("Modifier")
                             }
                         }
                     }
@@ -86,24 +99,45 @@ fun CategoriesScreen(
     }
 
     editingCategory?.let { category ->
-        BudgetLimitDialog(
+        CategoryEditDialog(
             category = category,
             onDismiss = { editingCategory = null },
-            onSave = { limit ->
+            onSaveBudget = { limit ->
                 viewModel.saveBudget(category.id, limit)
                 editingCategory = null
+            },
+            onRename = { name ->
+                viewModel.renameCategory(category.id, name)
+                editingCategory = null
+            },
+            onDelete = {
+                viewModel.deleteCategory(category.id)
+                editingCategory = null
+            }
+        )
+    }
+
+    if (showCreateDialog) {
+        CreateCategoryDialog(
+            onDismiss = { showCreateDialog = false },
+            onCreate = { name, limit ->
+                viewModel.createCategory(name, limit)
+                showCreateDialog = false
             }
         )
     }
 }
 
 @Composable
-private fun BudgetLimitDialog(
+private fun CategoryEditDialog(
     category: Category,
     onDismiss: () -> Unit,
-    onSave: (Double) -> Unit
+    onSaveBudget: (Double) -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit
 ) {
-    var value by remember(category.id) {
+    var name by remember(category.id) { mutableStateOf(category.name) }
+    var budgetText by remember(category.id) {
         mutableStateOf(
             if (category.monthlyBudgetLimit > 0.0) {
                 category.monthlyBudgetLimit.toLong().toString()
@@ -112,26 +146,26 @@ private fun BudgetLimitDialog(
             }
         )
     }
-    val parsedLimit = value.toDoubleOrNull()
+    val parsedBudget = budgetText.toDoubleOrNull()
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(category.name) },
+        title = { Text("Modifier la catégorie") },
         text = {
             Column {
-                Text(
-                    text = "Plafond mensuel en FCFA (0 pour désactiver le suivi)",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Intitulé") },
+                    singleLine = true
                 )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
-                    value = value,
-                    onValueChange = { newValue ->
-                        value = newValue.filter { it.isDigit() }.take(9)
-                    },
+                    value = budgetText,
+                    onValueChange = { budgetText = it.filter { c -> c.isDigit() } },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Plafond") },
+                    label = { Text("Plafond mensuel (FCFA)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
@@ -139,18 +173,66 @@ private fun BudgetLimitDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = parsedLimit != null && parsedLimit >= 0.0,
+                enabled = name.trim().isNotEmpty(),
                 onClick = {
-                    parsedLimit?.let(onSave)
+                    onRename(name.trim())
+                    parsedBudget?.let { onSaveBudget(it) }
                 }
             ) {
                 Text("Enregistrer")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Annuler")
+            Row {
+                TextButton(onClick = onDelete) { Text("Supprimer") }
+                TextButton(onClick = onDismiss) { Text("Annuler") }
             }
+        }
+    )
+}
+
+@Composable
+private fun CreateCategoryDialog(
+    onDismiss: () -> Unit,
+    onCreate: (String, Double) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var budgetText by remember { mutableStateOf("") }
+    val parsedBudget = budgetText.toDoubleOrNull() ?: 0.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nouvelle catégorie") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Intitulé") },
+                    singleLine = true
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = budgetText,
+                    onValueChange = { budgetText = it.filter { c -> c.isDigit() } },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Plafond mensuel (FCFA)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.trim().isNotEmpty(),
+                onClick = { onCreate(name.trim(), parsedBudget) }
+            ) {
+                Text("Créer")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annuler") }
         }
     )
 }

@@ -45,7 +45,11 @@ class CategorizationEngine(
     /** Suggestion de catégorie à partir d'un motif libre (réponse notification). */
     fun suggestCategory(text: String): String? = bestMatch(text)?.category
 
-    fun categorize(parsed: ParsedMessage, learnedRule: LearnedRule? = null): CategorizationResult {
+    fun categorize(
+        parsed: ParsedMessage,
+        learnedRule: LearnedRule? = null,
+        availableCategories: List<String> = emptyList()
+    ): CategorizationResult {
         // Étape 1 : seule une règle apprise (validée par l'utilisateur) confirme.
         if (learnedRule != null && learnedRule.categoryName.isNotBlank()) {
             return CategorizationResult(
@@ -68,13 +72,28 @@ class CategorizationEngine(
             )
         }
 
-        // Toute dépense/retrait doit être qualifiée par l'utilisateur.
+        // Étape 2 : les intitulés de catégories définis par l'utilisateur servent
+        // de base de recherche dans le message/contrepartie/motif.
+        val searchText = TextNormalizer.normalize(
+            listOfNotNull(parsed.rawReason, parsed.counterparty, parsed.rawMessage).joinToString(" ")
+        )
+        val matchedCategory = availableCategories
+            .filter { it.isNotBlank() && !it.equals(CATEGORY_OTHER, ignoreCase = true) }
+            .mapNotNull { name ->
+                val tokens = TextNormalizer.tokens(name).filter { it.length >= 3 }
+                val score = tokens.count { TextNormalizer.containsWord(searchText, it) }
+                if (score > 0) name to score else null
+            }
+            .maxByOrNull { it.second }
+            ?.first
+
+        // Suggestion uniquement : l'utilisateur confirme la catégorie.
         return CategorizationResult(
-            categoryName = null,
+            categoryName = matchedCategory,
             finalReason = parsed.rawReason,
             status = TransactionStatus.PENDING_REASON,
-            source = CategorizationSource.NONE,
-            confidence = 0
+            source = if (matchedCategory == null) CategorizationSource.NONE else CategorizationSource.REASON_KEYWORD,
+            confidence = if (matchedCategory == null) 0 else 50
         )
     }
 
