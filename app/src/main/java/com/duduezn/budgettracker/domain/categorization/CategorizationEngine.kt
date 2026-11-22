@@ -42,6 +42,9 @@ class CategorizationEngine(
     private val dictionary: Map<String, List<WeightedKeyword>> = DEFAULT_DICTIONARY
 ) {
 
+    /** Suggestion de catégorie à partir d'un motif libre (réponse notification). */
+    fun suggestCategory(text: String): String? = bestMatch(text)?.category
+
     fun categorize(parsed: ParsedMessage, learnedRule: LearnedRule? = null): CategorizationResult {
         // Étape 1 : une règle apprise prime toujours sur les heuristiques.
         if (learnedRule != null && learnedRule.categoryName.isNotBlank()) {
@@ -158,7 +161,7 @@ class CategorizationEngine(
             .maxByOrNull { it.score }
     }
 
-    private data class CategoryScore(val category: String, val score: Int)
+    data class CategoryScore(val category: String, val score: Int)
 
     data class WeightedKeyword(val keyword: String, val weight: Int)
 

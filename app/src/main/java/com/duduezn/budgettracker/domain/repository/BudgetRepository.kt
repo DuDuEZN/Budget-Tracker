@@ -34,11 +34,17 @@ interface BudgetRepository {
 
     suspend fun findCategoryByName(name: String): Category?
 
+    suspend fun findCategoryById(id: Long): Category?
+
+    suspend fun findTransaction(id: Long): Transaction?
+
     suspend fun findMerchantRule(counterparty: String): MerchantRule?
 
     suspend fun transactionCount(): Int
 
     suspend fun monthlySpent(startInclusive: Long, endExclusive: Long): Double
+
+    suspend fun monthlySpentByCategory(categoryId: Long, startInclusive: Long, endExclusive: Long): Double
 
     suspend fun totalBudget(): Double
 }

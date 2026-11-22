@@ -154,6 +154,12 @@ class OfflineBudgetRepository(
     override suspend fun findCategoryByName(name: String): Category? =
         categoryDao.findByName(name)?.toDomain()
 
+    override suspend fun findCategoryById(id: Long): Category? =
+        categoryDao.getById(id)?.toDomain()
+
+    override suspend fun findTransaction(id: Long): Transaction? =
+        transactionDao.getById(id)?.toDomain()
+
     override suspend fun findMerchantRule(counterparty: String): MerchantRule? =
         merchantRuleDao.findByCounterparty(MerchantIdentifier.normalize(counterparty))?.toDomain()
 
@@ -161,6 +167,12 @@ class OfflineBudgetRepository(
 
     override suspend fun monthlySpent(startInclusive: Long, endExclusive: Long): Double =
         transactionDao.spentBetween(startInclusive, endExclusive)
+
+    override suspend fun monthlySpentByCategory(
+        categoryId: Long,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Double = transactionDao.spentByCategory(categoryId, startInclusive, endExclusive)
 
     override suspend fun totalBudget(): Double = categoryDao.totalBudget()
 

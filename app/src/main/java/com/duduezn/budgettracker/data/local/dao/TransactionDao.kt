@@ -81,4 +81,19 @@ interface TransactionDao {
         """
     )
     suspend fun spentBetween(startInclusive: Long, endExclusive: Long): Double
+
+    @Query(
+        """
+        SELECT COALESCE(SUM(amount), 0.0) FROM transactions
+        WHERE detectedCategory = :categoryId
+          AND type IN ('PAIEMENT', 'RETRAIT')
+          AND status = 'CONFIRMED'
+          AND timestamp >= :startInclusive AND timestamp < :endExclusive
+        """
+    )
+    suspend fun spentByCategory(
+        categoryId: Long,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Double
 }

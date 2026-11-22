@@ -52,6 +52,9 @@
             </intent-filter>
         </service>
 
+        <receiver
+            android:name=".data.notification.TransactionActionReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

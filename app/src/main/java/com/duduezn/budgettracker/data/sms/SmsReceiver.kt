@@ -7,6 +7,7 @@ import android.provider.Telephony
 import com.duduezn.budgettracker.BudgetTrackerApp
 import com.duduezn.budgettracker.domain.model.IncomingMessage
 import com.duduezn.budgettracker.domain.model.MessageSource
+import com.duduezn.budgettracker.util.BudgetAlertNotifier
 import kotlinx.coroutines.launch
 
 /**
@@ -30,7 +31,7 @@ class SmsReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         app.container.applicationScope.launch {
             try {
-                app.container.ingestMessage(
+                val result = app.container.ingestMessage(
                     IncomingMessage(
                         body = body,
                         sender = sender,
@@ -38,6 +39,17 @@ class SmsReceiver : BroadcastReceiver() {
                         source = MessageSource.SMS
                     )
                 )
+                val inserted = result as? com.duduezn.budgettracker.domain.model.IngestResult.Inserted
+                if (inserted != null) {
+                    val transaction = app.container.repository.findTransaction(inserted.transactionId)
+                    if (transaction != null) {
+                        if (inserted.needsReason) {
+                            BudgetAlertNotifier.notifyPending(context, transaction)
+                        } else {
+                            BudgetAlertNotifier.notifyConfirmed(context, transaction)
+                        }
+                    }
+                }
             } finally {
                 pendingResult.finish()
             }

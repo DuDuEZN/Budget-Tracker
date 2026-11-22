@@ -6,6 +6,7 @@ import android.service.notification.StatusBarNotification
 import com.duduezn.budgettracker.BudgetTrackerApp
 import com.duduezn.budgettracker.domain.model.IncomingMessage
 import com.duduezn.budgettracker.domain.model.MessageSource
+import com.duduezn.budgettracker.util.BudgetAlertNotifier
 import kotlinx.coroutines.launch
 
 /**
@@ -38,7 +39,7 @@ class MomoNotificationListenerService : NotificationListenerService() {
 
         val app = applicationContext as? BudgetTrackerApp ?: return
         app.container.applicationScope.launch {
-            app.container.ingestMessage(
+            val result = app.container.ingestMessage(
                 IncomingMessage(
                     body = body,
                     sender = sbn.packageName,
@@ -46,6 +47,17 @@ class MomoNotificationListenerService : NotificationListenerService() {
                     source = MessageSource.NOTIFICATION
                 )
             )
+            val inserted = result as? com.duduezn.budgettracker.domain.model.IngestResult.Inserted
+            if (inserted != null) {
+                val transaction = app.container.repository.findTransaction(inserted.transactionId)
+                if (transaction != null) {
+                    if (inserted.needsReason) {
+                        BudgetAlertNotifier.notifyPending(applicationContext, transaction)
+                    } else {
+                        BudgetAlertNotifier.notifyConfirmed(applicationContext, transaction)
+                    }
+                }
+            }
         }
     }
 }

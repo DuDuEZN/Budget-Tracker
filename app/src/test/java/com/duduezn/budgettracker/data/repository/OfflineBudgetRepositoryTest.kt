@@ -159,6 +159,19 @@ private class FakeTransactionDao : TransactionDao {
 
     override suspend fun count(): Int = transactions.size
 
+    override suspend fun spentByCategory(
+        categoryId: Long,
+        startInclusive: Long,
+        endExclusive: Long
+    ): Double = transactions
+        .filter {
+            it.detectedCategory == categoryId &&
+                it.type != TransactionType.DEPOT &&
+                it.status == TransactionStatus.CONFIRMED &&
+                it.timestamp in startInclusive until endExclusive
+        }
+        .sumOf { it.amount }
+
     override suspend fun findDuplicate(
         amount: Double,
         operator: Operator,
