@@ -5,6 +5,7 @@ import com.duduezn.budgettracker.domain.model.ParsedMessage
 import com.duduezn.budgettracker.domain.model.TransactionStatus
 import com.duduezn.budgettracker.domain.model.TransactionType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class CategorizationEngineTest {
@@ -41,35 +42,33 @@ class CategorizationEngineTest {
     }
 
     @Test
-    fun `etape 2 - motif explicite taxi confirme transport`() {
+    fun `etape 2 - motif explicite taxi laisse en attente`() {
         val result = engine.categorize(
             message(TransactionType.RETRAIT, reason = "Taxi", explicit = true)
         )
 
-        assertEquals("Transport", result.categoryName)
-        assertEquals(TransactionStatus.CONFIRMED, result.status)
-        assertEquals(CategorizationSource.REASON_KEYWORD, result.source)
+        assertNull(result.categoryName)
+        assertEquals(TransactionStatus.PENDING_REASON, result.status)
     }
 
     @Test
-    fun `etape 2 - marchand SBEE confirme factures`() {
+    fun `etape 2 - marchand SBEE laisse en attente`() {
         val result = engine.categorize(
             message(TransactionType.PAIEMENT, counterparty = "MFS DIRECT SBEE")
         )
 
-        assertEquals("Factures & Services", result.categoryName)
-        assertEquals(TransactionStatus.CONFIRMED, result.status)
-        assertEquals(CategorizationSource.MERCHANT_KEYWORD, result.source)
+        assertNull(result.categoryName)
+        assertEquals(TransactionStatus.PENDING_REASON, result.status)
     }
 
     @Test
-    fun `etape 2 - BUY DATA confirme factures`() {
+    fun `etape 2 - BUY DATA laisse en attente`() {
         val result = engine.categorize(
             message(TransactionType.PAIEMENT, counterparty = "BUY DATA")
         )
 
-        assertEquals("Factures & Services", result.categoryName)
-        assertEquals(TransactionStatus.CONFIRMED, result.status)
+        assertNull(result.categoryName)
+        assertEquals(TransactionStatus.PENDING_REASON, result.status)
     }
 
     @Test
@@ -78,22 +77,22 @@ class CategorizationEngineTest {
             message(TransactionType.RETRAIT, counterparty = "LES MERVEILLES DE SEGNISSE")
         )
 
-        assertEquals("Transferts/Retraits", result.categoryName)
+        assertNull(result.categoryName)
         assertEquals(TransactionStatus.PENDING_REASON, result.status)
     }
 
     @Test
-    fun `retrait avec motif explicite Gina confirme transferts`() {
+    fun `retrait avec motif explicite Gina reste en attente`() {
         val result = engine.categorize(
             message(TransactionType.RETRAIT, reason = "Gina", explicit = true)
         )
 
-        assertEquals("Transferts/Retraits", result.categoryName)
-        assertEquals(TransactionStatus.CONFIRMED, result.status)
+        assertNull(result.categoryName)
+        assertEquals(TransactionStatus.PENDING_REASON, result.status)
     }
 
     @Test
-    fun `description BIIC ACHAT POS suggere achats mais reste en attente`() {
+    fun `description BIIC ACHAT POS reste en attente`() {
         val result = engine.categorize(
             message(
                 TransactionType.PAIEMENT,
@@ -102,12 +101,12 @@ class CategorizationEngineTest {
             )
         )
 
-        assertEquals("Achats", result.categoryName)
+        assertNull(result.categoryName)
         assertEquals(TransactionStatus.PENDING_REASON, result.status)
     }
 
     @Test
-    fun `description BIIC TRANSFRT suggere transferts mais reste en attente`() {
+    fun `description BIIC TRANSFRT reste en attente`() {
         val result = engine.categorize(
             message(
                 TransactionType.RETRAIT,
@@ -116,7 +115,7 @@ class CategorizationEngineTest {
             )
         )
 
-        assertEquals("Transferts/Retraits", result.categoryName)
+        assertNull(result.categoryName)
         assertEquals(TransactionStatus.PENDING_REASON, result.status)
     }
 

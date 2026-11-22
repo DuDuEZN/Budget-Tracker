@@ -46,7 +46,7 @@ class CategorizationEngine(
     fun suggestCategory(text: String): String? = bestMatch(text)?.category
 
     fun categorize(parsed: ParsedMessage, learnedRule: LearnedRule? = null): CategorizationResult {
-        // Étape 1 : une règle apprise prime toujours sur les heuristiques.
+        // Étape 1 : seule une règle apprise (validée par l'utilisateur) confirme.
         if (learnedRule != null && learnedRule.categoryName.isNotBlank()) {
             return CategorizationResult(
                 categoryName = learnedRule.categoryName,
@@ -57,63 +57,9 @@ class CategorizationEngine(
             )
         }
 
-        val explicitReason = parsed.rawReason?.takeIf { parsed.reasonIsExplicit && it.isNotBlank() }
-        val descriptiveReason = parsed.rawReason?.takeIf { !parsed.reasonIsExplicit && it.isNotBlank() }
-
-        // Étape 2a : le motif saisi par l'utilisateur est la meilleure source.
-        val reasonMatch = bestMatch(explicitReason.orEmpty())
-        if (explicitReason != null && reasonMatch != null) {
-            return confirmed(reasonMatch, explicitReason, CategorizationSource.REASON_KEYWORD)
-        }
-
-        // Étape 2b : le nom du marchand confirme un paiement (SBEE, BUY DATA, resto…).
-        val merchantMatch = bestMatch(parsed.counterparty.orEmpty())
-        if (merchantMatch != null && parsed.type == TransactionType.PAIEMENT) {
-            return confirmed(
-                merchantMatch,
-                explicitReason ?: parsed.counterparty,
-                CategorizationSource.MERCHANT_KEYWORD
-            )
-        }
-
-        // Étape 2c : un motif explicite sans mot-clé reste néanmoins une information sûre.
-        if (explicitReason != null) {
-            return when (parsed.type) {
-                TransactionType.RETRAIT -> CategorizationResult(
-                    categoryName = CATEGORY_TRANSFER,
-                    finalReason = explicitReason,
-                    status = TransactionStatus.CONFIRMED,
-                    source = CategorizationSource.REASON_KEYWORD,
-                    confidence = 60
-                )
-
-                TransactionType.PAIEMENT, TransactionType.DEPOT -> CategorizationResult(
-                    categoryName = CATEGORY_OTHER,
-                    finalReason = explicitReason,
-                    status = TransactionStatus.CONFIRMED,
-                    source = CategorizationSource.REASON_KEYWORD,
-                    confidence = 50
-                )
-            }
-        }
-
-        // Étape 2d : description bancaire (« ACHAT POS », « RET DAB ») = simple suggestion.
-        val descriptiveMatch = bestMatch(descriptiveReason.orEmpty())
-        if (descriptiveMatch != null) {
-            return pending(descriptiveMatch, descriptiveReason)
-        }
-
-        // Étape 3 : décision de relance.
-        return when (parsed.type) {
-            TransactionType.RETRAIT -> pending(
-                CategoryScore(CATEGORY_TRANSFER, 20),
-                descriptiveReason
-            )
-
-            TransactionType.PAIEMENT -> pending(null, descriptiveReason)
-
-            // Un dépôt n'est pas une dépense : on évite de polluer la file de relance.
-            TransactionType.DEPOT -> CategorizationResult(
+        // Un dépôt est un revenu : on l'enregistre sans demander de motif.
+        if (parsed.type == TransactionType.DEPOT) {
+            return CategorizationResult(
                 categoryName = CATEGORY_OTHER,
                 finalReason = "Dépôt automatique",
                 status = TransactionStatus.CONFIRMED,
@@ -121,6 +67,15 @@ class CategorizationEngine(
                 confidence = 30
             )
         }
+
+        // Toute dépense/retrait doit être qualifiée par l'utilisateur.
+        return CategorizationResult(
+            categoryName = null,
+            finalReason = parsed.rawReason,
+            status = TransactionStatus.PENDING_REASON,
+            source = CategorizationSource.NONE,
+            confidence = 0
+        )
     }
 
     private fun confirmed(

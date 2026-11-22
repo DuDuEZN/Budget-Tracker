@@ -81,11 +81,22 @@ object BudgetAlertNotifier {
             }
         }
 
+        val openIntent = Intent(context, com.duduezn.budgettracker.ui.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val openPending = PendingIntent.getActivity(
+            context,
+            (transaction.id.toInt() + 5000),
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_CONFIRMED)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(openPending)
             .setAutoCancel(true)
             .build()
 
@@ -121,11 +132,16 @@ object BudgetAlertNotifier {
             action = ACTION_REPLY_REASON
             putExtra(EXTRA_TRANSACTION_ID, transaction.id)
         }
+        val mutableFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE
+        } else {
+            0
+        }
         val replyPending = PendingIntent.getBroadcast(
             context,
             transaction.id.toInt(),
             replyIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or mutableFlag
         )
         val replyAction = NotificationCompat.Action.Builder(
             R.drawable.ic_notification,

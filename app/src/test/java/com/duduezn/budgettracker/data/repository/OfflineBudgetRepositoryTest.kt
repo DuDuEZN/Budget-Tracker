@@ -20,6 +20,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -68,17 +69,17 @@ class OfflineBudgetRepositoryTest {
     }
 
     @Test
-    fun `categorie detectee confirme la transaction`() = runTest {
+    fun `transaction non apprise reste en attente de motif`() = runTest {
         val repository = repository()
 
         val result = repository.ingest(
             parsed(counterparty = "RESTO LE BAOBAB")
         )
 
-        assertFalse((result as IngestResult.Inserted).needsReason)
+        assertTrue((result as IngestResult.Inserted).needsReason)
         val stored = transactionDao.transactions.single()
-        assertEquals(TransactionStatus.CONFIRMED, stored.status)
-        assertEquals("Restauration", categoryDao.categories.first { it.id == stored.detectedCategory }.name)
+        assertEquals(TransactionStatus.PENDING_REASON, stored.status)
+        assertNull(stored.detectedCategory)
     }
 
     @Test
