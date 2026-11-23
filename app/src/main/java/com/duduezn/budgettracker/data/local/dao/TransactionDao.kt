@@ -7,6 +7,7 @@ import androidx.room.Query
 import com.duduezn.budgettracker.data.local.entity.TransactionEntity
 import com.duduezn.budgettracker.domain.model.Operator
 import com.duduezn.budgettracker.domain.model.TransactionStatus
+import com.duduezn.budgettracker.domain.model.TransactionType
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -29,6 +30,42 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): TransactionEntity?
+
+    /**
+     * Pagination SQL de l'historique : évite de charger des milliers de lignes d'un coup.
+     * Les paramètres null désactivent le filtre correspondant.
+     */
+    @Query(
+        """
+        SELECT * FROM transactions
+        WHERE (:status IS NULL OR status = :status)
+          AND (:type IS NULL OR type = :type)
+          AND (:categoryId IS NULL OR detectedCategory = :categoryId)
+        ORDER BY timestamp DESC
+        LIMIT :limit OFFSET :offset
+        """
+    )
+    fun observeFiltered(
+        status: TransactionStatus?,
+        type: TransactionType?,
+        categoryId: Long?,
+        limit: Int,
+        offset: Int
+    ): Flow<List<TransactionEntity>>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM transactions
+        WHERE (:status IS NULL OR status = :status)
+          AND (:type IS NULL OR type = :type)
+          AND (:categoryId IS NULL OR detectedCategory = :categoryId)
+        """
+    )
+    fun observeFilteredCount(
+        status: TransactionStatus?,
+        type: TransactionType?,
+        categoryId: Long?
+    ): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM transactions")
     suspend fun count(): Int

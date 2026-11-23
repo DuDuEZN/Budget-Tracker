@@ -3,6 +3,7 @@ package com.duduezn.budgettracker.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -23,6 +24,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.duduezn.budgettracker.di.AppContainer
+import com.duduezn.budgettracker.security.AppLockManager
+import com.duduezn.budgettracker.ui.analysis.AnalysisScreen
 import com.duduezn.budgettracker.ui.categories.CategoriesScreen
 import com.duduezn.budgettracker.ui.dashboard.DashboardScreen
 import com.duduezn.budgettracker.ui.settings.SettingsScreen
@@ -37,12 +40,17 @@ private data class Destination(
 private val destinations = listOf(
     Destination("dashboard", "Accueil", Icons.Default.Home),
     Destination("transactions", "Transactions", Icons.AutoMirrored.Filled.List),
+    Destination("analysis", "Analyse", Icons.Default.DateRange),
     Destination("categories", "Catégories", Icons.Default.ShoppingCart),
     Destination("settings", "Paramètres", Icons.Default.Settings)
 )
 
 @Composable
-fun BudgetTrackerRoot(container: AppContainer) {
+fun BudgetTrackerRoot(
+    container: AppContainer,
+    lockManager: AppLockManager,
+    onLockNow: () -> Unit
+) {
     val navController = rememberNavController()
     val factory = remember(container) { BudgetViewModelFactory(container) }
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -80,20 +88,27 @@ fun BudgetTrackerRoot(container: AppContainer) {
             startDestination = destinations.first().route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(destinations[0].route) {
+            composable("dashboard") {
                 DashboardScreen(
                     viewModel = viewModel(factory = factory),
-                    onSeePending = { navController.navigate(destinations[1].route) }
+                    onSeePending = { navController.navigate("transactions") },
+                    onSeeAnalysis = { navController.navigate("analysis") }
                 )
             }
-            composable(destinations[1].route) {
+            composable("transactions") {
                 TransactionsScreen(viewModel = viewModel(factory = factory))
             }
-            composable(destinations[2].route) {
+            composable("analysis") {
+                AnalysisScreen(viewModel = viewModel(factory = factory))
+            }
+            composable("categories") {
                 CategoriesScreen(viewModel = viewModel(factory = factory))
             }
-            composable(destinations[3].route) {
-                SettingsScreen()
+            composable("settings") {
+                SettingsScreen(
+                    lockManager = lockManager,
+                    onLockNow = onLockNow
+                )
             }
         }
     }

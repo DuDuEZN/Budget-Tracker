@@ -74,7 +74,8 @@ fun TransactionsScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "${state.pendingCount} en attente de motif",
+                        text = "${state.pendingCount} en attente de motif • " +
+                            "${state.transactions.size}/${state.totalCount} affichées",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -136,6 +137,19 @@ fun TransactionsScreen(
                         ?.let { state.categoriesById[it]?.name },
                     onConfirmReason = { selectedTransaction = transaction }
                 )
+            }
+
+            if (state.hasMore) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        TextButton(onClick = { viewModel.loadMore() }) {
+                            Text("Charger plus (${state.totalCount - state.transactions.size} restantes)")
+                        }
+                    }
+                }
             }
         }
     }

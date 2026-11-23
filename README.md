@@ -7,6 +7,10 @@ Les transactions sont déduites des **SMS** et des **notifications** de paiement
 localement dans Room, puis classées par catégorie avec un motif. Aucune donnée ne quitte
 le téléphone : **aucune permission `INTERNET`, aucun backend, aucune bibliothèque réseau**.
 
+L'application est protégée par un **code PIN obligatoire** (et une biométrie optionnelle),
+propose un **tableau de bord d'analyse** (courbes mois par mois / année par année),
+détecte les **abonnements récurrents** et pagine l'historique pour rester fluide.
+
 ## Pile technique
 
 | Élément | Choix |
@@ -17,6 +21,8 @@ le téléphone : **aucune permission `INTERNET`, aucun backend, aucune biblioth�
 | Persistance | Room 2.7.1 (SQLite) |
 | Asynchrone | Coroutines + Flow |
 | Tâches de fond | WorkManager (alerte budgétaire quotidienne) |
+| Sécurité | Code PIN local (SHA-256 + sel) + biométrie AndroidX |
+| Analyse | Compose Canvas (courbes) + détection d'abonnements hors ligne |
 | Build | AGP 8.11.1, Gradle 8.13, JDK 17+, compileSdk/targetSdk 36, minSdk 26 |
 
 ## Arborescence
@@ -40,6 +46,7 @@ Budget-Tracker/
 │       │   │   ├── domain/
 │       │   │   │   ├── model/Models.kt
 │       │   │   │   ├── parser/MessageParser.kt
+│       │   │   │   ├── analysis/SubscriptionDetector.kt
 │       │   │   │   ├── repository/BudgetRepository.kt
 │       │   │   │   ├── usecase/ (3 cas d'usage)
 │       │   │   │   └── util/MonthRange.kt
@@ -51,15 +58,17 @@ Budget-Tracker/
 │       │   │   │   ├── sms/SmsReceiver.kt
 │       │   │   │   ├── notification/MomoNotificationListenerService.kt
 │       │   │   │   └── work/ (worker + planificateur)
+│       │   │   ├── security/AppLockManager.kt
 │       │   │   ├── ui/
 │       │   │   │   ├── MainActivity.kt
 │       │   │   │   ├── BudgetTrackerRoot.kt
 │       │   │   │   ├── BudgetViewModelFactory.kt
-│       │   │   │   ├── dashboard/ transactions/ categories/
+│       │   │   │   ├── onboarding/ lock/ analysis/
+│       │   │   │   ├── dashboard/ transactions/ categories/ settings/
 │       │   │   │   ├── components/ theme/ model/ util/
 │       │   │   └── util/NotificationHelper.kt
 │       │   └── res/ (thème, icônes adaptatives, chaînes)
-│       └── test/…/MobileMoneyParserTest.kt
+│       └── test/…/ (parseur, moteur, dépôt, abonnements)
 └── README.md
 ```
 
@@ -112,6 +121,23 @@ Les paiements suivants vers ce marchand sont alors classés et confirmés automa
 5. L'écran Transactions permet de choisir une catégorie et un motif, ce qui passe la
    transaction à `CONFIRMED` et enrichit les règles marchand.
 
+## Fonctionnalités principales
+
+- **Onboarding illustré** : explication des permissions SMS, notifications et batterie,
+  avec accès direct aux réglages système.
+- **Verrouillage obligatoire** : code PIN 4 à 6 chiffres demandé à chaque démarrage,
+  biométrie optionnelle (Android 9+) ; le PIN n'est jamais stocké en clair.
+- **Dashboard** : entrées/sorties, jauges de budget et file de transactions à qualifier.
+- **Analyse** : courbe des dépenses par catégorie sur 12 mois ou 5 années, comparaison
+  avec la période précédente et comparaison catégorie par catégorie.
+- **Abonnements** : détection locale des paiements récurrents (même marchand, montant
+  stable, intervalle d'environ 30 jours, au moins 3 occurrences).
+- **Historique paginé** : requêtes SQL `LIMIT`/`OFFSET` et bouton « Charger plus » pour
+  éviter de charger des milliers de lignes.
+- **Catégories personnalisées** : l'utilisateur crée/renomme ses catégories ; leurs
+  intitulés servent de base de recherche pour suggérer une catégorie, toujours confirmée
+  par l'utilisateur.
+
 ## Compiler l'APK
 
 Prérequis : JDK 17 ou 21, Android SDK 36, plateforme `android-36` et build-tools installés.
@@ -134,7 +160,7 @@ echo "sdk.dir=/chemin/vers/Android/Sdk" > local.properties
 > et remplacez `signingConfig = signingConfigs.getByName("debug")` dans
 > `app/build.gradle.kts`.
 
-Tests unitaires du parseur :
+Tests unitaires (parseur, catégorisation, dépôt, abonnements) :
 
 ```bash
 ./gradlew testDebugUnitTest
@@ -153,6 +179,8 @@ sdk.dir=C\:\\Android\\sdk
 | `RECEIVE_SMS` | capter les SMS de transaction |
 | `READ_SMS` | lecture de l'historique (import ultérieur) |
 | `POST_NOTIFICATIONS` | alerte locale à 80 % du budget |
+| `USE_BIOMETRIC` / `USE_FINGERPRINT` | déverrouillage biométrique local |
+| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | détection fiable en arrière-plan |
 | `BIND_NOTIFICATION_LISTENER_SERVICE` | accès aux notifications, accordé par l'utilisateur dans les réglages |
 
 L'accès aux notifications s'active depuis l'écran d'accueil ou

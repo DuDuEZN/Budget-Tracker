@@ -3,6 +3,7 @@ package com.duduezn.budgettracker.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.duduezn.budgettracker.di.AppContainer
+import com.duduezn.budgettracker.ui.analysis.AnalysisViewModel
 import com.duduezn.budgettracker.ui.categories.CategoriesViewModel
 import com.duduezn.budgettracker.ui.dashboard.DashboardViewModel
 import com.duduezn.budgettracker.ui.transactions.TransactionsViewModel
@@ -19,6 +20,9 @@ class BudgetViewModelFactory(
 
         modelClass.isAssignableFrom(TransactionsViewModel::class.java) ->
             TransactionsViewModel(container.repository, container.confirmReason) as T
+
+        modelClass.isAssignableFrom(AnalysisViewModel::class.java) ->
+            AnalysisViewModel(container.repository) as T
 
         modelClass.isAssignableFrom(CategoriesViewModel::class.java) ->
             CategoriesViewModel(container.repository, container.updateCategoryBudget) as T

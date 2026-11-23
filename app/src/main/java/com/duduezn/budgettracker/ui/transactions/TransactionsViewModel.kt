@@ -11,10 +11,12 @@ import com.duduezn.budgettracker.domain.model.TransactionStatus
 import com.duduezn.budgettracker.domain.model.TransactionType
 import com.duduezn.budgettracker.domain.repository.BudgetRepository
 import com.duduezn.budgettracker.domain.usecase.ConfirmTransactionReasonUseCase
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -32,6 +34,8 @@ data class TransactionsUiState(
     val filter: TransactionFilter = TransactionFilter.ALL,
     val typeFilter: TransactionType? = null,
     val categoryFilter: Long? = null,
+    val totalCount: Int = 0,
+    val hasMore: Boolean = false,
     val loading: Boolean = true
 )
 
@@ -40,36 +44,53 @@ class TransactionsViewModel(
     private val confirmReasonUseCase: ConfirmTransactionReasonUseCase
 ) : ViewModel() {
 
-    private val filter = MutableStateFlow(TransactionFilter.ALL)
-    private val typeFilter = MutableStateFlow<TransactionType?>(null)
-    private val categoryFilter = MutableStateFlow<Long?>(null)
-
-    val uiState: StateFlow<TransactionsUiState> = combine(
-        repository.observeTransactions(),
-        repository.observeCategories(),
-        filter,
-        typeFilter,
-        categoryFilter
-    ) { transactions, categories, activeFilter, activeType, activeCategory ->
-        val visibleTransactions = transactions.filter { transaction ->
-            val statusOk = when (activeFilter) {
-                TransactionFilter.ALL -> true
-                TransactionFilter.PENDING -> transaction.status == TransactionStatus.PENDING_REASON
-                TransactionFilter.CONFIRMED -> transaction.status == TransactionStatus.CONFIRMED
-            }
-            val typeOk = activeType == null || transaction.type == activeType
-            val categoryOk = activeCategory == null || transaction.detectedCategory == activeCategory
-            statusOk && typeOk && categoryOk
+    private data class QueryState(
+        val filter: TransactionFilter = TransactionFilter.ALL,
+        val type: TransactionType? = null,
+        val categoryId: Long? = null,
+        val limit: Int = PAGE_SIZE
+    ) {
+        fun statusFilter(): TransactionStatus? = when (filter) {
+            TransactionFilter.ALL -> null
+            TransactionFilter.PENDING -> TransactionStatus.PENDING_REASON
+            TransactionFilter.CONFIRMED -> TransactionStatus.CONFIRMED
         }
+    }
 
+    private val query = MutableStateFlow(QueryState())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<TransactionsUiState> = combine(
+        query,
+        repository.observeCategories(),
+        query.flatMapLatest { state ->
+            repository.observeTransactionPage(
+                status = state.statusFilter(),
+                type = state.type,
+                categoryId = state.categoryId,
+                limit = state.limit,
+                offset = 0
+            )
+        },
+        query.flatMapLatest { state ->
+            repository.observeTransactionCount(
+                status = state.statusFilter(),
+                type = state.type,
+                categoryId = state.categoryId
+            )
+        },
+        repository.observePendingTransactions()
+    ) { state, categories, page, total, pending ->
         TransactionsUiState(
-            transactions = visibleTransactions,
+            transactions = page,
             categories = categories,
             categoriesById = categories.associateBy { it.id },
-            pendingCount = transactions.count { it.status == TransactionStatus.PENDING_REASON },
-            filter = activeFilter,
-            typeFilter = activeType,
-            categoryFilter = activeCategory,
+            pendingCount = pending.size,
+            filter = state.filter,
+            typeFilter = state.type,
+            categoryFilter = state.categoryId,
+            totalCount = total,
+            hasMore = state.limit < total,
             loading = false
         )
     }.stateIn(
@@ -79,15 +100,20 @@ class TransactionsViewModel(
     )
 
     fun setFilter(value: TransactionFilter) {
-        filter.value = value
+        query.value = query.value.copy(filter = value, limit = PAGE_SIZE)
     }
 
     fun setTypeFilter(value: TransactionType?) {
-        typeFilter.value = value
+        query.value = query.value.copy(type = value, limit = PAGE_SIZE)
     }
 
     fun setCategoryFilter(value: Long?) {
-        categoryFilter.value = value
+        query.value = query.value.copy(categoryId = value, limit = PAGE_SIZE)
+    }
+
+    fun loadMore() {
+        val current = query.value
+        query.value = current.copy(limit = current.limit + PAGE_SIZE)
     }
 
     fun confirmReason(
@@ -133,5 +159,9 @@ class TransactionsViewModel(
                 )
             }
         }
+    }
+
+    private companion object {
+        const val PAGE_SIZE = 50
     }
 }

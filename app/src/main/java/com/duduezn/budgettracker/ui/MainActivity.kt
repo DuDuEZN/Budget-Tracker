@@ -1,52 +1,105 @@
 package com.duduezn.budgettracker.ui
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.duduezn.budgettracker.BudgetTrackerApp
+import com.duduezn.budgettracker.security.AppLockManager
+import com.duduezn.budgettracker.ui.lock.PinSetupScreen
+import com.duduezn.budgettracker.ui.lock.PinUnlockScreen
+import com.duduezn.budgettracker.ui.onboarding.OnboardingScreen
 import com.duduezn.budgettracker.ui.theme.BudgetTrackerTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
-    private val permissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* Les refus sont gérés silencieusement : l'app reste utilisable en saisie manuelle. */ }
+    private lateinit var lockManager: AppLockManager
+    private lateinit var mainViewModel: MainViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         val container = (application as BudgetTrackerApp).container
+        lockManager = AppLockManager(applicationContext)
+        mainViewModel = ViewModelProvider(this)[MainViewModel::class.java]
+        mainViewModel.initialize(initialStage(lockManager))
 
         setContent {
             BudgetTrackerTheme {
-                BudgetTrackerRoot(container)
+                val stage by mainViewModel.stage.collectAsStateWithLifecycle()
+
+                when (stage ?: initialStage(lockManager)) {
+                    GateStage.ONBOARDING -> OnboardingScreen(
+                        onComplete = {
+                            lockManager.setOnboardingComplete()
+                            mainViewModel.setStage(
+                                if (lockManager.isPinSet()) {
+                                    GateStage.UNLOCK
+                                } else {
+                                    GateStage.PIN_SETUP
+                                }
+                            )
+                        }
+                    )
+
+                    GateStage.PIN_SETUP -> PinSetupScreen(
+                        lockManager = lockManager,
+                        onDone = { mainViewModel.setStage(GateStage.ROOT) }
+                    )
+
+                    GateStage.UNLOCK -> PinUnlockScreen(
+                        lockManager = lockManager,
+                        onUnlocked = { mainViewModel.setStage(GateStage.ROOT) }
+                    )
+
+                    GateStage.ROOT -> {
+                        AutoLockEffect(onLock = { mainViewModel.setStage(GateStage.UNLOCK) })
+                        BudgetTrackerRoot(
+                            container = container,
+                            lockManager = lockManager,
+                            onLockNow = { mainViewModel.setStage(GateStage.UNLOCK) }
+                        )
+                    }
+                }
             }
         }
-
-        requestRuntimePermissions()
     }
 
-    private fun requestRuntimePermissions() {
-        val permissions = buildList {
-            add(Manifest.permission.RECEIVE_SMS)
-            add(Manifest.permission.READ_SMS)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }.filter { permission ->
-            ContextCompat.checkSelfPermission(this, permission) !=
-                PackageManager.PERMISSION_GRANTED
-        }
+    private fun initialStage(lockManager: AppLockManager): GateStage = when {
+        !lockManager.isOnboardingComplete() -> GateStage.ONBOARDING
+        !lockManager.isPinSet() -> GateStage.PIN_SETUP
+        else -> GateStage.UNLOCK
+    }
+}
 
-        if (permissions.isNotEmpty()) {
-            permissionLauncher.launch(permissions.toTypedArray())
+/**
+ * Verrouille automatiquement l'application après un passage en arrière-plan.
+ * Un délai évite de redemander le code lors d'une simple rotation ou d'un aller-retour rapide.
+ */
+@Composable
+private fun AutoLockEffect(onLock: () -> Unit) {
+    var stoppedAt by remember { mutableStateOf(0L) }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        stoppedAt = System.currentTimeMillis()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        val elapsed = System.currentTimeMillis() - stoppedAt
+        if (stoppedAt > 0L && elapsed > BACKGROUND_LOCK_DELAY_MS) {
+            stoppedAt = 0L
+            onLock()
         }
     }
 }
+
+private const val BACKGROUND_LOCK_DELAY_MS = 60_000L

@@ -155,6 +155,35 @@ private class FakeTransactionDao : TransactionDao {
         list.filter { it.timestamp in startInclusive until endExclusive }
     }
 
+    override fun observeFiltered(
+        status: TransactionStatus?,
+        type: TransactionType?,
+        categoryId: Long?,
+        limit: Int,
+        offset: Int
+    ): Flow<List<TransactionEntity>> = state.map { list ->
+        list.asSequence()
+            .filter { status == null || it.status == status }
+            .filter { type == null || it.type == type }
+            .filter { categoryId == null || it.detectedCategory == categoryId }
+            .sortedByDescending { it.timestamp }
+            .drop(offset)
+            .take(limit)
+            .toList()
+    }
+
+    override fun observeFilteredCount(
+        status: TransactionStatus?,
+        type: TransactionType?,
+        categoryId: Long?
+    ): Flow<Int> = state.map { list ->
+        list.count {
+            (status == null || it.status == status) &&
+                (type == null || it.type == type) &&
+                (categoryId == null || it.detectedCategory == categoryId)
+        }
+    }
+
     override suspend fun getById(id: Long): TransactionEntity? =
         transactions.firstOrNull { it.id == id }
 

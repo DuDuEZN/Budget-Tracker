@@ -17,9 +17,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,26 +37,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.duduezn.budgettracker.BudgetTrackerApp
-import com.duduezn.budgettracker.R
 import com.duduezn.budgettracker.domain.model.IncomingMessage
 import com.duduezn.budgettracker.domain.model.MessageSource
-import com.duduezn.budgettracker.ui.util.hexToColor
+import com.duduezn.budgettracker.security.AppLockManager
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    lockManager: AppLockManager,
+    onLockNow: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var biometricEnabled by remember {
-        mutableStateOf(
-            context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-                .getBoolean("biometric_lock", false)
-        )
-    }
+    val biometricSupported = remember { AppLockManager.isBiometricSupported(context) }
+    var biometricEnabled by remember { mutableStateOf(lockManager.isBiometricEnabled()) }
+    var showChangePin by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -115,30 +120,62 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
 
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Verrouillage biométrique", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Protège l'application au démarrage.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Code PIN", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Demandé à chaque démarrage de l'application.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(onClick = { showChangePin = true }) {
+                            Text("Modifier")
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Verrouillage biométrique", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                if (biometricSupported) {
+                                    "Déverrouillez avec votre empreinte en plus du code PIN."
+                                } else {
+                                    "Non disponible sur cet appareil (Android 9+ requis)."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = biometricEnabled,
+                            enabled = biometricSupported,
+                            onCheckedChange = { value ->
+                                biometricEnabled = value
+                                lockManager.setBiometricEnabled(value)
+                            }
                         )
                     }
-                    Switch(
-                        checked = biometricEnabled,
-                        onCheckedChange = { value ->
-                            biometricEnabled = value
-                            context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-                                .edit()
-                                .putBoolean("biometric_lock", value)
-                                .apply()
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = onLockNow) {
+                            Text("Verrouiller maintenant")
                         }
-                    )
+                    }
                 }
             }
         }
@@ -188,6 +225,106 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             }
         }
     }
+
+    if (showChangePin) {
+        ChangePinDialog(
+            lockManager = lockManager,
+            onDismiss = { showChangePin = false }
+        )
+    }
+}
+
+@Composable
+private fun ChangePinDialog(
+    lockManager: AppLockManager,
+    onDismiss: () -> Unit
+) {
+    var currentPin by remember { mutableStateOf("") }
+    var newPin by remember { mutableStateOf("") }
+    var confirmPin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val canSubmit = currentPin.isNotEmpty() &&
+        lockManager.isValidPin(newPin) &&
+        newPin == confirmPin
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Modifier le code PIN") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = currentPin,
+                    onValueChange = { value ->
+                        currentPin = value.filter { it.isDigit() }.take(6)
+                        error = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Code actuel") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = newPin,
+                    onValueChange = { value ->
+                        newPin = value.filter { it.isDigit() }.take(6)
+                        error = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Nouveau code (4 à 6 chiffres)") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = confirmPin,
+                    onValueChange = { value ->
+                        confirmPin = value.filter { it.isDigit() }.take(6)
+                        error = null
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Confirmer le nouveau code") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                )
+                if (error != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = error.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = canSubmit,
+                onClick = {
+                    if (!lockManager.verifyPin(currentPin)) {
+                        error = "Le code actuel est incorrect."
+                    } else if (newPin != confirmPin) {
+                        error = "Les deux nouveaux codes ne correspondent pas."
+                    } else if (lockManager.setPin(newPin)) {
+                        onDismiss()
+                    } else {
+                        error = "Impossible d'enregistrer le nouveau code."
+                    }
+                }
+            ) {
+                Text("Enregistrer")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
 }
 
 @Composable

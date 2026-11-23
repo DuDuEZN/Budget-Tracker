@@ -17,6 +17,7 @@ import com.duduezn.budgettracker.domain.model.MerchantRule
 import com.duduezn.budgettracker.domain.model.ParsedMessage
 import com.duduezn.budgettracker.domain.model.Transaction
 import com.duduezn.budgettracker.domain.model.TransactionStatus
+import com.duduezn.budgettracker.domain.model.TransactionType
 import com.duduezn.budgettracker.domain.repository.BudgetRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -35,6 +36,22 @@ class OfflineBudgetRepository(
 
     override fun observeTransactions(): Flow<List<Transaction>> =
         transactionDao.observeAll().map { entities -> entities.map { it.toDomain() } }
+
+    override fun observeTransactionPage(
+        status: TransactionStatus?,
+        type: TransactionType?,
+        categoryId: Long?,
+        limit: Int,
+        offset: Int
+    ): Flow<List<Transaction>> =
+        transactionDao.observeFiltered(status, type, categoryId, limit, offset)
+            .map { entities -> entities.map { it.toDomain() } }
+
+    override fun observeTransactionCount(
+        status: TransactionStatus?,
+        type: TransactionType?,
+        categoryId: Long?
+    ): Flow<Int> = transactionDao.observeFilteredCount(status, type, categoryId)
 
     override fun observePendingTransactions(): Flow<List<Transaction>> =
         transactionDao.observeByStatus(TransactionStatus.PENDING_REASON)

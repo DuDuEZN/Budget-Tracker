@@ -5,6 +5,8 @@ import com.duduezn.budgettracker.domain.model.IngestResult
 import com.duduezn.budgettracker.domain.model.MerchantRule
 import com.duduezn.budgettracker.domain.model.ParsedMessage
 import com.duduezn.budgettracker.domain.model.Transaction
+import com.duduezn.budgettracker.domain.model.TransactionStatus
+import com.duduezn.budgettracker.domain.model.TransactionType
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -14,6 +16,21 @@ import kotlinx.coroutines.flow.Flow
 interface BudgetRepository {
 
     fun observeTransactions(): Flow<List<Transaction>>
+
+    /** Page d'historique filtrée, limitée côté SQL pour rester fluide sur de gros volumes. */
+    fun observeTransactionPage(
+        status: TransactionStatus?,
+        type: TransactionType?,
+        categoryId: Long?,
+        limit: Int,
+        offset: Int = 0
+    ): Flow<List<Transaction>>
+
+    fun observeTransactionCount(
+        status: TransactionStatus?,
+        type: TransactionType?,
+        categoryId: Long?
+    ): Flow<Int>
 
     fun observePendingTransactions(): Flow<List<Transaction>>
 
