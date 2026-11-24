@@ -5,9 +5,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Étapes de démarrage : onboarding, création du PIN, déverrouillage, application. */
+/** Étapes de démarrage : onboarding, définition du budget, création du PIN, déverrouillage, application. */
 enum class GateStage {
     ONBOARDING,
+    BUDGET_SETUP,
     PIN_SETUP,
     UNLOCK,
     ROOT

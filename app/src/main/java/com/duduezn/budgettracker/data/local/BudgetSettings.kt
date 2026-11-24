@@ -6,10 +6,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Réglages budgétaires de l'utilisateur : revenu du mois et début du cycle. */
+/** Réglages budgétaires de l'utilisateur : revenu du mois, début du cycle, assistant terminé. */
 data class BudgetSettingsState(
     val monthStartDay: Int = MonthRange.DEFAULT_START_DAY,
-    val monthlyIncome: Double = 0.0
+    val monthlyIncome: Double = 0.0,
+    val budgetSetupComplete: Boolean = false
 )
 
 /**
@@ -36,16 +37,23 @@ class BudgetSettings(context: Context) {
         _state.value = _state.value.copy(monthStartDay = safe)
     }
 
+    fun setBudgetSetupComplete(complete: Boolean = true) {
+        prefs.edit().putBoolean(KEY_SETUP_COMPLETE, complete).apply()
+        _state.value = _state.value.copy(budgetSetupComplete = complete)
+    }
+
     private fun read(): BudgetSettingsState = BudgetSettingsState(
         monthStartDay = prefs.getInt(KEY_START_DAY, MonthRange.DEFAULT_START_DAY)
             .coerceIn(MonthRange.MIN_START_DAY, MonthRange.MAX_START_DAY),
         monthlyIncome = Double.fromBits(prefs.getLong(KEY_INCOME, 0.0.toBits()))
-            .coerceAtLeast(0.0)
+            .coerceAtLeast(0.0),
+        budgetSetupComplete = prefs.getBoolean(KEY_SETUP_COMPLETE, false)
     )
 
     private companion object {
         const val PREFS_NAME = "budget_settings"
         const val KEY_INCOME = "monthly_income"
         const val KEY_START_DAY = "month_start_day"
+        const val KEY_SETUP_COMPLETE = "budget_setup_complete"
     }
 }

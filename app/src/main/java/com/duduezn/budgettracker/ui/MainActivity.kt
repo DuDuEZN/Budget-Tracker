@@ -14,15 +14,18 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.duduezn.budgettracker.BudgetTrackerApp
+import com.duduezn.budgettracker.data.local.BudgetSettings
 import com.duduezn.budgettracker.security.AppLockManager
 import com.duduezn.budgettracker.ui.lock.PinSetupScreen
 import com.duduezn.budgettracker.ui.lock.PinUnlockScreen
 import com.duduezn.budgettracker.ui.onboarding.OnboardingScreen
+import com.duduezn.budgettracker.ui.setup.BudgetSetupScreen
 import com.duduezn.budgettracker.ui.theme.BudgetTrackerTheme
 
 class MainActivity : FragmentActivity() {
 
     private lateinit var lockManager: AppLockManager
+    private lateinit var budgetSettings: BudgetSettings
     private lateinit var mainViewModel: MainViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,17 +34,33 @@ class MainActivity : FragmentActivity() {
 
         val container = (application as BudgetTrackerApp).container
         lockManager = AppLockManager(applicationContext)
+        budgetSettings = container.budgetSettings
         mainViewModel = ViewModelProvider(this)[MainViewModel::class.java]
-        mainViewModel.initialize(initialStage(lockManager))
+        mainViewModel.initialize(initialStage(lockManager, budgetSettings))
 
         setContent {
             BudgetTrackerTheme {
                 val stage by mainViewModel.stage.collectAsStateWithLifecycle()
 
-                when (stage ?: initialStage(lockManager)) {
+                when (stage ?: initialStage(lockManager, budgetSettings)) {
                     GateStage.ONBOARDING -> OnboardingScreen(
                         onComplete = {
                             lockManager.setOnboardingComplete()
+                            mainViewModel.setStage(
+                                if (!budgetSettings.state.value.budgetSetupComplete) {
+                                    GateStage.BUDGET_SETUP
+                                } else if (lockManager.isPinSet()) {
+                                    GateStage.UNLOCK
+                                } else {
+                                    GateStage.PIN_SETUP
+                                }
+                            )
+                        }
+                    )
+
+                    GateStage.BUDGET_SETUP -> BudgetSetupScreen(
+                        budgetSettings = budgetSettings,
+                        onComplete = {
                             mainViewModel.setStage(
                                 if (lockManager.isPinSet()) {
                                     GateStage.UNLOCK
@@ -75,8 +94,9 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    private fun initialStage(lockManager: AppLockManager): GateStage = when {
+    private fun initialStage(lockManager: AppLockManager, budgetSettings: BudgetSettings): GateStage = when {
         !lockManager.isOnboardingComplete() -> GateStage.ONBOARDING
+        !budgetSettings.state.value.budgetSetupComplete -> GateStage.BUDGET_SETUP
         !lockManager.isPinSet() -> GateStage.PIN_SETUP
         else -> GateStage.UNLOCK
     }
