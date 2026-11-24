@@ -60,7 +60,7 @@ class DashboardViewModel(
             monthStartDay = budget.monthStartDay,
             totalSpent = confirmedSpending.sumOf { it.amount },
             totalIncome = confirmedIncome.sumOf { it.amount },
-            monthlyIncome = budget.monthlyIncome,
+            monthlyIncome = budget.totalPlannedIncome,
             totalBudget = categories.sumOf { it.monthlyBudgetLimit },
             pendingCount = transactions.count { it.status == TransactionStatus.PENDING_REASON },
             categoryProgress = categories.map { category ->

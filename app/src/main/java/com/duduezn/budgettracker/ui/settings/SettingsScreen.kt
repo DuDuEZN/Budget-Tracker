@@ -69,6 +69,7 @@ fun SettingsScreen(
     var showChangePin by remember { mutableStateOf(false) }
     var showIncomeDialog by remember { mutableStateOf(false) }
     var showStartDayDialog by remember { mutableStateOf(false) }
+    var showAddComplementary by remember { mutableStateOf(false) }
     var crashLog by remember { mutableStateOf(CrashLogger.read(context)) }
     var crashLogCopied by remember { mutableStateOf(false) }
     val budget by budgetSettings.state.collectAsStateWithLifecycle()
@@ -133,6 +134,56 @@ fun SettingsScreen(
                         TextButton(onClick = { showStartDayDialog = true }) {
                             Text("Modifier")
                         }
+                    }
+                }
+            }
+        }
+
+        item { SectionHeader("Revenus complÃ©mentaires") }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    if (budget.complementaryIncomes.isEmpty()) {
+                        Text(
+                            text = "Aucun revenu complÃ©mentaire pour l'instant.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        budget.complementaryIncomes.forEach { income ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(income.label, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        text = formatXof(income.amount),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                TextButton(onClick = {
+                                    budgetSettings.removeComplementaryIncome(income.id)
+                                }) {
+                                    Text("Supprimer")
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Total : ${formatXof(budget.totalComplementaryIncome)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { showAddComplementary = true }) {
+                        Text("Ajouter un revenu complÃ©mentaire")
                     }
                 }
             }
@@ -363,6 +414,16 @@ fun SettingsScreen(
             }
         )
     }
+    if (showAddComplementary) {
+        AddComplementaryIncomeDialog(
+            onDismiss = { showAddComplementary = false },
+            onConfirm = { label, amount ->
+                budgetSettings.addComplementaryIncome(label, amount)
+                showAddComplementary = false
+            }
+        )
+    }
+
 }
 
 @Composable
@@ -641,3 +702,60 @@ private val DEMO_MESSAGES = listOf(
     "Moov" to "Retrait de 10 000 FCFA effectue. Frais: 100 FCFA.\nNouveau solde: 5 000 FCFA.",
     "Celtiis" to "Celtiis Money: vous avez effectue un paiement de 1 000 FCFA chez BOUTIQUE ALPHA."
 )
+
+@Composable
+private fun AddComplementaryIncomeDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, Double) -> Unit
+) {
+    var label by remember { mutableStateOf("") }
+    var amountText by remember { mutableStateOf("") }
+    val amount = amountText.filter { it.isDigit() }.toDoubleOrNull()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Revenu complémentaire") },
+        text = {
+            Column {
+                Text(
+                    "Ajoutez un revenu supplémentaire (prime, freelance, aide...).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Libellé (optionnel)") },
+                    singleLine = true
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { value -> amountText = value.filter { it.isDigit() }.take(12) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Montant (FCFA)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    supportingText = {
+                        if (amount != null) Text(formatXof(amount))
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = amount != null && (amount ?: 0.0) > 0.0,
+                onClick = { onConfirm(label, amount ?: 0.0) }
+            ) {
+                Text("Ajouter")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
+}
