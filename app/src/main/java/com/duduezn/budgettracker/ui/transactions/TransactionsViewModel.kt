@@ -11,6 +11,7 @@ import com.duduezn.budgettracker.domain.model.TransactionStatus
 import com.duduezn.budgettracker.domain.model.TransactionType
 import com.duduezn.budgettracker.domain.repository.BudgetRepository
 import com.duduezn.budgettracker.domain.usecase.ConfirmTransactionReasonUseCase
+import com.duduezn.budgettracker.util.CrashLogger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -123,7 +124,11 @@ class TransactionsViewModel(
         rememberMerchant: Boolean = true
     ) {
         viewModelScope.launch {
-            confirmReasonUseCase(transactionId, categoryId, reason, rememberMerchant)
+            try {
+                confirmReasonUseCase(transactionId, categoryId, reason, rememberMerchant)
+            } catch (t: Throwable) {
+                CrashLogger.log(t)
+            }
         }
     }
 
@@ -137,26 +142,30 @@ class TransactionsViewModel(
     ) {
         if (amount <= 0.0) return
         viewModelScope.launch {
-            val cleanReason = reason?.trim()?.takeIf { it.isNotEmpty() }
-            val parsed = ParsedMessage(
-                rawMessage = "Saisie manuelle",
-                operator = Operator.UNKNOWN,
-                type = type,
-                amount = amount,
-                counterparty = counterparty?.trim()?.takeIf { it.isNotEmpty() },
-                timestamp = System.currentTimeMillis(),
-                rawReason = cleanReason,
-                reasonIsExplicit = cleanReason != null
-            )
-            val result = repository.ingest(parsed)
-            val inserted = result as? IngestResult.Inserted ?: return@launch
-            if (categoryId != null) {
-                confirmReasonUseCase(
-                    inserted.transactionId,
-                    categoryId,
-                    cleanReason ?: "Dépense manuelle",
-                    rememberMerchant
+            try {
+                val cleanReason = reason?.trim()?.takeIf { it.isNotEmpty() }
+                val parsed = ParsedMessage(
+                    rawMessage = "Saisie manuelle",
+                    operator = Operator.UNKNOWN,
+                    type = type,
+                    amount = amount,
+                    counterparty = counterparty?.trim()?.takeIf { it.isNotEmpty() },
+                    timestamp = System.currentTimeMillis(),
+                    rawReason = cleanReason,
+                    reasonIsExplicit = cleanReason != null
                 )
+                val result = repository.ingest(parsed)
+                val inserted = result as? IngestResult.Inserted ?: return@launch
+                if (categoryId != null) {
+                    confirmReasonUseCase(
+                        inserted.transactionId,
+                        categoryId,
+                        cleanReason ?: "Dépense manuelle",
+                        rememberMerchant
+                    )
+                }
+            } catch (t: Throwable) {
+                CrashLogger.log(t)
             }
         }
     }

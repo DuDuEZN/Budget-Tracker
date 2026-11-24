@@ -9,6 +9,7 @@ import androidx.core.app.RemoteInput
 import com.duduezn.budgettracker.BudgetTrackerApp
 import com.duduezn.budgettracker.domain.categorization.CategorizationEngine
 import com.duduezn.budgettracker.util.BudgetAlertNotifier
+import com.duduezn.budgettracker.util.CrashLogger
 import kotlinx.coroutines.launch
 
 /**
@@ -75,6 +76,8 @@ class TransactionActionReceiver : BroadcastReceiver() {
                 if (updated != null) {
                     BudgetAlertNotifier.notifyConfirmed(context, updated)
                 }
+            } catch (t: Throwable) {
+                CrashLogger.log(context, t)
             } finally {
                 pendingResult.finish()
             }

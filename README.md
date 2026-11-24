@@ -128,6 +128,9 @@ Les paiements suivants vers ce marchand sont alors classés et confirmés automa
 - **Verrouillage obligatoire** : code PIN 4 à 6 chiffres demandé à chaque démarrage,
   biométrie optionnelle (Android 9+) ; le PIN n'est jamais stocké en clair.
 - **Dashboard** : entrées/sorties, jauges de budget et file de transactions à qualifier.
+- **Revenu du mois** : montant déclaré dans Paramètres, avec reste à dépenser calculé.
+- **Début du mois personnalisable** : le cycle budgétaire peut démarrer le 1er ou n'importe
+  quel jour de 1 à 28 (utile quand le salaire tombe en milieu de mois).
 - **Analyse** : courbe des dépenses par catégorie sur 12 mois ou 5 années, comparaison
   avec la période précédente et comparaison catégorie par catégorie.
 - **Abonnements** : détection locale des paiements récurrents (même marchand, montant
@@ -137,6 +140,8 @@ Les paiements suivants vers ce marchand sont alors classés et confirmés automa
 - **Catégories personnalisées** : l'utilisateur crée/renomme ses catégories ; leurs
   intitulés servent de base de recherche pour suggérer une catégorie, toujours confirmée
   par l'utilisateur.
+- **Journal d'erreurs local** : toute erreur non gérée est écrite dans un fichier privé et
+  consultable/copiable depuis Paramètres, pour diagnostiquer un plantage.
 
 ## Compiler l'APK
 

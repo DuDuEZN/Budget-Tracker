@@ -8,6 +8,7 @@ import com.duduezn.budgettracker.BudgetTrackerApp
 import com.duduezn.budgettracker.domain.model.IncomingMessage
 import com.duduezn.budgettracker.domain.model.MessageSource
 import com.duduezn.budgettracker.util.BudgetAlertNotifier
+import com.duduezn.budgettracker.util.CrashLogger
 import kotlinx.coroutines.launch
 
 /**
@@ -50,6 +51,8 @@ class SmsReceiver : BroadcastReceiver() {
                         }
                     }
                 }
+            } catch (t: Throwable) {
+                CrashLogger.log(context, t)
             } finally {
                 pendingResult.finish()
             }

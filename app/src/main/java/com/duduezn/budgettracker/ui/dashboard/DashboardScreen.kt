@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -46,6 +47,7 @@ fun DashboardScreen(
     viewModel: DashboardViewModel,
     onSeePending: () -> Unit,
     onSeeAnalysis: () -> Unit,
+    onEditIncome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -91,7 +93,7 @@ fun DashboardScreen(
             }
         }
 
-        item { MonthlyTotalCard(state) }
+        item { MonthlyTotalCard(state, onEditIncome) }
 
         if (state.pendingCount > 0) {
             item { PendingTransactionsCard(state.pendingCount, onSeePending) }
@@ -109,7 +111,7 @@ fun DashboardScreen(
 
         item { SectionTitle("Budgets par catégorie") }
 
-        items(state.categoryProgress, key = { it.category.id }) { progress ->
+        items(state.categoryProgress, key = { "category-${it.category.id}" }) { progress ->
             CategoryBudgetRow(progress = progress)
         }
 
@@ -126,7 +128,7 @@ fun DashboardScreen(
                 )
             }
         } else {
-            items(state.recentTransactions, key = { it.id }) { transaction ->
+            items(state.recentTransactions, key = { "transaction-${it.id}" }) { transaction ->
                 TransactionCard(
                     transaction = transaction,
                     categoryName = transaction.detectedCategory
@@ -140,7 +142,12 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun MonthlyTotalCard(state: DashboardUiState) {
+private fun MonthlyTotalCard(state: DashboardUiState, onEditIncome: () -> Unit) {
+    val income = if (state.monthlyIncome > 0.0) state.monthlyIncome else state.totalIncome
+    val reference = if (state.monthlyIncome > 0.0) state.monthlyIncome else state.totalBudget
+    val remaining = income - state.totalSpent
+    val onCard = MaterialTheme.colorScheme.onPrimary
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -148,54 +155,78 @@ private fun MonthlyTotalCard(state: DashboardUiState) {
         )
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = "Ce mois-ci",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-            )
-            Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Ce mois-ci",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = onCard.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = state.monthLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onCard.copy(alpha = 0.9f)
+                    )
+                }
+                TextButton(
+                    onClick = onEditIncome,
+                    colors = ButtonDefaults.textButtonColors(contentColor = onCard)
+                ) {
+                    Text(if (state.monthlyIncome > 0.0) "Modifier" else "Définir")
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Column {
+                    Text(
+                        text = "Revenus",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = onCard.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = if (income > 0.0) formatXof(income) else "Non défini",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = onCard
+                    )
+                }
                 Column {
                     Text(
                         text = "Sorties",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                        color = onCard.copy(alpha = 0.8f)
                     )
                     Text(
                         text = formatXof(state.totalSpent),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-                Column {
-                    Text(
-                        text = "Entrées",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                    )
-                    Text(
-                        text = formatXof(state.totalIncome),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
+                        color = onCard
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = if (state.totalBudget > 0.0) {
-                    "sur ${formatXof(state.totalBudget)} budgétés"
-                } else {
-                    "Aucun plafond défini pour l'instant"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-            )
 
-            if (state.totalBudget > 0.0) {
+            if (income > 0.0) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = if (remaining >= 0.0) {
+                        "Reste ${formatXof(remaining)}"
+                    } else {
+                        "Dépassement de ${formatXof(-remaining)}"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (remaining >= 0.0) onCard else Color(0xFFFFD180)
+                )
+            }
+
+            if (reference > 0.0) {
                 Spacer(Modifier.height(12.dp))
-                val ratio = (state.totalSpent / state.totalBudget).toFloat().coerceIn(0f, 1f)
+                val ratio = (state.totalSpent / reference).toFloat().coerceIn(0f, 1f)
                 LinearProgressIndicator(
                     progress = { ratio },
                     modifier = Modifier
@@ -207,9 +238,30 @@ private fun MonthlyTotalCard(state: DashboardUiState) {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "${(ratio * 100).toInt()} % du budget consommé",
+                    text = "${(ratio * 100).toInt()} % " + if (state.monthlyIncome > 0.0) {
+                        "du revenu consommé"
+                    } else {
+                        "du budget consommé"
+                    },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                    color = onCard.copy(alpha = 0.8f)
+                )
+            }
+
+            val details = buildList {
+                if (state.monthlyIncome > 0.0 && state.totalIncome > 0.0) {
+                    add("Entrées détectées ${formatXof(state.totalIncome)}")
+                }
+                if (state.totalBudget > 0.0) {
+                    add("plafonds ${formatXof(state.totalBudget)}")
+                }
+            }
+            if (details.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = details.joinToString(" • "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onCard.copy(alpha = 0.8f)
                 )
             }
         }

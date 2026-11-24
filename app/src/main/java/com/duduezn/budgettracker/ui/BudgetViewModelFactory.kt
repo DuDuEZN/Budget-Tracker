@@ -16,13 +16,13 @@ class BudgetViewModelFactory(
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = when {
         modelClass.isAssignableFrom(DashboardViewModel::class.java) ->
-            DashboardViewModel(container.repository) as T
+            DashboardViewModel(container.repository, container.budgetSettings) as T
 
         modelClass.isAssignableFrom(TransactionsViewModel::class.java) ->
             TransactionsViewModel(container.repository, container.confirmReason) as T
 
         modelClass.isAssignableFrom(AnalysisViewModel::class.java) ->
-            AnalysisViewModel(container.repository) as T
+            AnalysisViewModel(container.repository, container.budgetSettings) as T
 
         modelClass.isAssignableFrom(CategoriesViewModel::class.java) ->
             CategoriesViewModel(container.repository, container.updateCategoryBudget) as T

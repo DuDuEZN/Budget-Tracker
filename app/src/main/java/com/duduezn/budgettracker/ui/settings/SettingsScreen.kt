@@ -1,6 +1,8 @@
 package com.duduezn.budgettracker.ui.settings
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -42,15 +44,21 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.duduezn.budgettracker.BudgetTrackerApp
+import com.duduezn.budgettracker.data.local.BudgetSettings
 import com.duduezn.budgettracker.domain.model.IncomingMessage
 import com.duduezn.budgettracker.domain.model.MessageSource
+import com.duduezn.budgettracker.domain.util.MonthRange
 import com.duduezn.budgettracker.security.AppLockManager
+import com.duduezn.budgettracker.ui.util.formatXof
+import com.duduezn.budgettracker.util.CrashLogger
 import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
     lockManager: AppLockManager,
+    budgetSettings: BudgetSettings,
     onLockNow: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -59,6 +67,11 @@ fun SettingsScreen(
     val biometricSupported = remember { AppLockManager.isBiometricSupported(context) }
     var biometricEnabled by remember { mutableStateOf(lockManager.isBiometricEnabled()) }
     var showChangePin by remember { mutableStateOf(false) }
+    var showIncomeDialog by remember { mutableStateOf(false) }
+    var showStartDayDialog by remember { mutableStateOf(false) }
+    var crashLog by remember { mutableStateOf(CrashLogger.read(context)) }
+    var crashLogCopied by remember { mutableStateOf(false) }
+    val budget by budgetSettings.state.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -71,6 +84,58 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
+        }
+
+        item { SectionHeader("Budget mensuel") }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Revenu du mois", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = if (budget.monthlyIncome > 0.0) {
+                                    formatXof(budget.monthlyIncome)
+                                } else {
+                                    "Non défini — appuyez pour le saisir"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(onClick = { showIncomeDialog = true }) {
+                            Text(if (budget.monthlyIncome > 0.0) "Modifier" else "Définir")
+                        }
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Début du mois", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = if (budget.monthStartDay == 1) {
+                                    "Le 1er de chaque mois"
+                                } else {
+                                    "Le ${budget.monthStartDay} de chaque mois"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(onClick = { showStartDayDialog = true }) {
+                            Text("Modifier")
+                        }
+                    }
+                }
+            }
         }
 
         item { SectionHeader("Permissions") }
@@ -212,6 +277,50 @@ fun SettingsScreen(
             }
         }
 
+        item { SectionHeader("Diagnostic") }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Journal d'erreurs", fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = if (crashLog == null) {
+                            "Aucune erreur enregistrée."
+                        } else {
+                            "Des erreurs ont été enregistrées localement. " +
+                                "Copiez le journal pour aider au diagnostic."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (crashLog != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = {
+                                val text = crashLog.orEmpty()
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                    as? ClipboardManager
+                                clipboard?.setPrimaryClip(
+                                    ClipData.newPlainText("Budget Tracker", text)
+                                )
+                                crashLogCopied = true
+                            }) {
+                                Text(if (crashLogCopied) "Copié ✓" else "Copier")
+                            }
+                            TextButton(onClick = {
+                                CrashLogger.clear(context)
+                                crashLog = null
+                                crashLogCopied = false
+                            }) {
+                                Text("Effacer")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         item { SectionHeader("Budgets") }
 
         item {
@@ -232,6 +341,136 @@ fun SettingsScreen(
             onDismiss = { showChangePin = false }
         )
     }
+
+    if (showIncomeDialog) {
+        IncomeDialog(
+            current = budget.monthlyIncome,
+            onDismiss = { showIncomeDialog = false },
+            onConfirm = { amount ->
+                budgetSettings.setMonthlyIncome(amount)
+                showIncomeDialog = false
+            }
+        )
+    }
+
+    if (showStartDayDialog) {
+        StartDayDialog(
+            current = budget.monthStartDay,
+            onDismiss = { showStartDayDialog = false },
+            onConfirm = { day ->
+                budgetSettings.setMonthStartDay(day)
+                showStartDayDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun IncomeDialog(
+    current: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    var text by remember {
+        mutableStateOf(if (current > 0.0) current.toLong().toString() else "")
+    }
+    val amount = text.filter { it.isDigit() }.toDoubleOrNull()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Revenu du mois") },
+        text = {
+            Column {
+                Text(
+                    "Indiquez le montant que vous prévoyez de percevoir sur ce mois.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { value -> text = value.filter { it.isDigit() }.take(12) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Montant (FCFA)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                if (amount != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = formatXof(amount),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = amount != null,
+                onClick = { onConfirm(amount ?: 0.0) }
+            ) {
+                Text("Enregistrer")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
+}
+
+@Composable
+private fun StartDayDialog(
+    current: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    var text by remember { mutableStateOf(current.toString()) }
+    val day = text.toIntOrNull()
+    val valid = day != null && day in MonthRange.MIN_START_DAY..MonthRange.MAX_START_DAY
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Début du mois") },
+        text = {
+            Column {
+                Text(
+                    "Choisissez le jour où commence votre mois budgétaire, " +
+                        "souvent le jour de votre salaire (1 à 28).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { value -> text = value.filter { it.isDigit() }.take(2) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Jour du mois") },
+                    singleLine = true,
+                    isError = !valid,
+                    supportingText = {
+                        if (!valid) Text("Entrez un jour entre 1 et 28.")
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = valid,
+                onClick = { onConfirm(day ?: MonthRange.DEFAULT_START_DAY) }
+            ) {
+                Text("Enregistrer")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
 }
 
 @Composable

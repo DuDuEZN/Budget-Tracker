@@ -2,6 +2,7 @@ package com.duduezn.budgettracker.ui.analysis
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.duduezn.budgettracker.data.local.BudgetSettings
 import com.duduezn.budgettracker.domain.analysis.DetectedSubscription
 import com.duduezn.budgettracker.domain.analysis.SubscriptionDetector
 import com.duduezn.budgettracker.domain.model.Category
@@ -9,6 +10,7 @@ import com.duduezn.budgettracker.domain.model.Transaction
 import com.duduezn.budgettracker.domain.model.TransactionStatus
 import com.duduezn.budgettracker.domain.model.TransactionType
 import com.duduezn.budgettracker.domain.repository.BudgetRepository
+import com.duduezn.budgettracker.domain.util.MonthRange
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +48,7 @@ data class CategoryComparison(
 data class AnalysisUiState(
     val scale: AnalysisScale = AnalysisScale.MONTH,
     val selectedCategoryId: Long? = null,
+    val monthStartDay: Int = MonthRange.DEFAULT_START_DAY,
     val categories: List<Category> = emptyList(),
     val buckets: List<PeriodBucket> = emptyList(),
     val currentTotal: Double = 0.0,
@@ -68,7 +71,8 @@ data class AnalysisUiState(
 }
 
 class AnalysisViewModel(
-    repository: BudgetRepository
+    repository: BudgetRepository,
+    settings: BudgetSettings
 ) : ViewModel() {
 
     private val scale = MutableStateFlow(AnalysisScale.MONTH)
@@ -77,10 +81,11 @@ class AnalysisViewModel(
     val uiState: StateFlow<AnalysisUiState> = combine(
         repository.observeTransactions(),
         repository.observeCategories(),
+        settings.state,
         scale,
         selectedCategoryId
-    ) { transactions, categories, activeScale, activeCategory ->
-        val buckets = buildBuckets(transactions, activeScale)
+    ) { transactions, categories, budget, activeScale, activeCategory ->
+        val buckets = buildBuckets(transactions, activeScale, budget.monthStartDay)
         val latest = buckets.lastOrNull()
         val previous = buckets.dropLast(1).lastOrNull()
 
@@ -92,6 +97,7 @@ class AnalysisViewModel(
         AnalysisUiState(
             scale = activeScale,
             selectedCategoryId = activeCategory,
+            monthStartDay = budget.monthStartDay,
             categories = categories,
             buckets = buckets,
             currentTotal = value(latest),
@@ -125,29 +131,28 @@ class AnalysisViewModel(
 
     private fun buildBuckets(
         transactions: List<Transaction>,
-        scale: AnalysisScale
+        scale: AnalysisScale,
+        monthStartDay: Int
     ): List<PeriodBucket> {
         val spending = transactions.filter {
             it.status == TransactionStatus.CONFIRMED && it.type != TransactionType.DEPOT
         }
 
         return when (scale) {
-            AnalysisScale.MONTH -> monthlyBuckets(spending, count = 12)
+            AnalysisScale.MONTH -> monthlyBuckets(spending, count = 12, startDay = monthStartDay)
             AnalysisScale.YEAR -> yearlyBuckets(spending, count = 5)
         }
     }
 
     private fun monthlyBuckets(
         spending: List<Transaction>,
-        count: Int
+        count: Int,
+        startDay: Int
     ): List<PeriodBucket> {
         val formatter = SimpleDateFormat("MMM yy", Locale.FRENCH)
+        // Repart du début du cycle courant pour rester aligné sur le tableau de bord.
         val cursor = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+            timeInMillis = MonthRange.current(startDay = startDay).first
             add(Calendar.MONTH, -(count - 1))
         }
 

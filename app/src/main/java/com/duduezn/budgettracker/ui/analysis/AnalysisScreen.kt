@@ -121,6 +121,14 @@ fun AnalysisScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (state.scale == AnalysisScale.MONTH && state.monthStartDay != 1) {
+                        Text(
+                            text = "Mois budgétaire : du ${state.monthStartDay} au " +
+                                "${state.monthStartDay - 1} du mois suivant",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Spacer(Modifier.height(12.dp))
                     SpendingLineChart(
                         values = state.series,
@@ -144,7 +152,7 @@ fun AnalysisScreen(
                 )
             }
         } else {
-            items(state.categoryComparisons, key = { it.category.id }) { comparison ->
+            items(state.categoryComparisons, key = { "comparison-${it.category.id}" }) { comparison ->
                 CategoryComparisonRow(comparison)
             }
         }
@@ -161,7 +169,7 @@ fun AnalysisScreen(
                 )
             }
         } else {
-            items(state.subscriptions, key = { it.normalizedCounterparty }) { subscription ->
+            items(state.subscriptions, key = { "subscription-${it.normalizedCounterparty}" }) { subscription ->
                 SubscriptionCard(
                     subscription = subscription,
                     categoryName = subscription.categoryId?.let { id ->

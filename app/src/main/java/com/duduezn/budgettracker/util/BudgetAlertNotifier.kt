@@ -16,8 +16,8 @@ import com.duduezn.budgettracker.R
 import com.duduezn.budgettracker.data.notification.TransactionActionReceiver
 import com.duduezn.budgettracker.domain.model.Transaction
 import com.duduezn.budgettracker.domain.model.TransactionStatus
+import com.duduezn.budgettracker.domain.util.MonthRange
 import java.text.NumberFormat
-import java.util.Calendar
 import java.util.Locale
 
 /**
@@ -61,8 +61,9 @@ object BudgetAlertNotifier {
     suspend fun notifyConfirmed(context: Context, transaction: Transaction) {
         if (!canNotify(context)) return
 
-        val app = context.applicationContext as BudgetTrackerApp
+        val app = context.applicationContext as? BudgetTrackerApp ?: return
         val repository = app.container.repository
+        val startDay = app.container.budgetSettings.state.value.monthStartDay
 
         val formatter = NumberFormat.getIntegerInstance(Locale.FRANCE)
         val title = "Transaction enregistrée"
@@ -72,7 +73,7 @@ object BudgetAlertNotifier {
             if (categoryId != null) {
                 val category = repository.findCategoryById(categoryId)
                 if (category != null && category.monthlyBudgetLimit > 0.0) {
-                    val (start, end) = currentMonthBounds()
+                    val (start, end) = currentMonthBounds(startDay)
                     val spent = repository.monthlySpentByCategory(category.id, start, end)
                     val remaining = category.monthlyBudgetLimit - spent
                     append(" • reste ").append(formatter.format(remaining.toLong()))
@@ -201,16 +202,8 @@ object BudgetAlertNotifier {
         NotificationManagerCompat.from(context).notify(id, notification)
     }
 
-    private fun currentMonthBounds(): Pair<Long, Long> {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.DAY_OF_MONTH, 1)
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        val start = cal.timeInMillis
-        cal.add(Calendar.MONTH, 1)
-        val end = cal.timeInMillis
-        return start to end
+    private fun currentMonthBounds(startDay: Int): Pair<Long, Long> {
+        val range = MonthRange.current(startDay = startDay)
+        return range.first to range.last + 1
     }
 }

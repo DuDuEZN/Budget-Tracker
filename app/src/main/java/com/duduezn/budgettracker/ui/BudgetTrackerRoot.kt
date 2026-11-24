@@ -92,7 +92,16 @@ fun BudgetTrackerRoot(
                 DashboardScreen(
                     viewModel = viewModel(factory = factory),
                     onSeePending = { navController.navigate("transactions") },
-                    onSeeAnalysis = { navController.navigate("analysis") }
+                    onSeeAnalysis = { navController.navigate("analysis") },
+                    onEditIncome = {
+                        navController.navigate("settings") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
             composable("transactions") {
@@ -107,6 +116,7 @@ fun BudgetTrackerRoot(
             composable("settings") {
                 SettingsScreen(
                     lockManager = lockManager,
+                    budgetSettings = container.budgetSettings,
                     onLockNow = onLockNow
                 )
             }

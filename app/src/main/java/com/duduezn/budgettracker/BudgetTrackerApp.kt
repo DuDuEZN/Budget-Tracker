@@ -5,6 +5,7 @@ import com.duduezn.budgettracker.data.work.BudgetAlertScheduler
 import com.duduezn.budgettracker.di.AppContainer
 import com.duduezn.budgettracker.di.DefaultAppContainer
 import com.duduezn.budgettracker.util.BudgetAlertNotifier
+import com.duduezn.budgettracker.util.CrashLogger
 import com.duduezn.budgettracker.util.NotificationHelper
 
 class BudgetTrackerApp : Application() {
@@ -13,6 +14,8 @@ class BudgetTrackerApp : Application() {
         private set
 
     override fun onCreate() {
+        // Installé en premier : même une erreur au démarrage est journalisée localement.
+        CrashLogger.install(this)
         super.onCreate()
         container = DefaultAppContainer(this)
         container.initialize()

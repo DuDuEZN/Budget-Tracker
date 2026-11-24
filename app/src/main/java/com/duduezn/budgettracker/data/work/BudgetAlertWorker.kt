@@ -23,7 +23,8 @@ class BudgetAlertWorker(
         if (totalBudget <= 0.0) {
             Result.success()
         } else {
-            val range = MonthRange.current()
+            val startDay = container.budgetSettings.state.value.monthStartDay
+            val range = MonthRange.current(startDay = startDay)
             val spent = container.repository.monthlySpent(range.first, range.last + 1)
             if (spent >= totalBudget * ALERT_THRESHOLD) {
                 NotificationHelper.notifyBudgetAlert(applicationContext, spent, totalBudget)
